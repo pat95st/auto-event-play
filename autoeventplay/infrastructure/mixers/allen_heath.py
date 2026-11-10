@@ -359,3 +359,224 @@ class AllenHeathSqDriver(_AhBase):
                 for fut in self._waiters.pop(key, []):
                     if not fut.done():
                         fut.set_result(full)
+
+
+# =========================================================================== dLive / Avantis
+
+# Channel selection: (MIDI channel offset from base N, first note, count)
+DLIVE_LAYOUT = {
+    "dlive": {
+        "inputs": (0, 0x00, 128),
+        "mono_group": (1, 0x00, 62), "stereo_group": (1, 0x40, 31),
+        "mono_aux": (2, 0x00, 62), "stereo_aux": (2, 0x40, 31),
+        "mono_matrix": (3, 0x00, 62), "stereo_matrix": (3, 0x40, 31),
+        "mono_fx_send": (4, 0x00, 16), "stereo_fx_send": (4, 0x10, 16),
+        "fx_return": (4, 0x20, 16), "main": (4, 0x30, 6), "dca": (4, 0x36, 24), "mute_group": (4, 0x4E, 8),
+    },
+    "avantis": {
+        "inputs": (0, 0x00, 96),
+        "mono_group": (1, 0x00, 54), "stereo_group": (1, 0x40, 27),
+        "mono_aux": (2, 0x00, 54), "stereo_aux": (2, 0x40, 27),
+        "mono_matrix": (3, 0x00, 54), "stereo_matrix": (3, 0x40, 27),
+        "mono_fx_send": (4, 0x00, 12), "stereo_fx_send": (4, 0x10, 12),
+        "fx_return": (4, 0x20, 12), "main": (4, 0x30, 3), "dca": (4, 0x36, 16), "mute_group": (4, 0x46, 8),
+    },
+}
+AH_SYSEX_HEADER = [0xF0, 0x00, 0x00, 0x1A, 0x50, 0x10, 0x01, 0x00]
+
+
+def dlive_level_value(db: float | None) -> int:
+    """LV = (dB + 54) / 64 × 127, -∞ = 0, +10 dB = 0x7F, 0 dB = 0x6B."""
+    if is_off(db):
+        return 0
+    v = (max(-54.0, min(10.0, float(db))) + 54.0) / 64.0 * 127.0
+    return max(0, min(0x7F, int(round(v))))
+
+
+def dlive_value_to_db(lv: int) -> float:
+    return MIN_DB if lv <= 0 else lv / 127.0 * 64.0 - 54.0
+
+
+def _mono_stereo_labels(mono: int, stereo: int, mono_label: str, stereo_label: str) -> dict[int, str]:
+    labels = {i: f"{mono_label} {i}" for i in range(1, mono + 1)}
+    labels.update({mono + i: f"{stereo_label} {i}" for i in range(1, stereo + 1)})
+    return labels
+
+
+class _AhDliveBase(_AhBase):
+    platform = "dlive"
+    can_query = True
+    option_specs = [OptionSpec("midi_channel", "MIDI-Basiskanal", "int", 12,
+                               help="Wie am Pult unter Utility › Control › MIDI (belegt Basiskanal bis Basiskanal + 4).")]
+
+    @classmethod
+    def kinds_for(cls, config: MixerConfig | None) -> list[KindSpec]:
+        L = DLIVE_LAYOUT[cls.platform]
+        mg, sg = L["mono_group"][2], L["stereo_group"][2]
+        ma, sa = L["mono_aux"][2], L["stereo_aux"][2]
+        mm, sm = L["mono_matrix"][2], L["stereo_matrix"][2]
+        mf, sf = L["mono_fx_send"][2], L["stereo_fx_send"][2]
+        aux_labels = _mono_stereo_labels(ma, sa, "Aux", "St-Aux")
+        return [
+            KindSpec(K.CHANNEL, "Kanal", L["inputs"][2]),
+            KindSpec(K.GROUP, "Gruppe", mg + sg, number_labels=_mono_stereo_labels(mg, sg, "Grp", "St-Grp")),
+            KindSpec(K.BUS, "Aux", ma + sa, number_labels=aux_labels),
+            KindSpec(K.MATRIX, "Matrix", mm + sm, number_labels=_mono_stereo_labels(mm, sm, "Mtx", "St-Mtx")),
+            KindSpec(K.FX_SEND, "FX-Send", mf + sf, number_labels=_mono_stereo_labels(mf, sf, "FX", "St-FX")),
+            KindSpec(K.FX_RETURN, "FX Return", L["fx_return"][2]),
+            KindSpec(K.MAIN, "Main", L["main"][2]),
+            KindSpec(K.DCA, "DCA", L["dca"][2]),
+            KindSpec(K.MUTE_GROUP, "Mute-Gruppe", L["mute_group"][2], level=False),
+            KindSpec(K.SEND, "Kanal → Aux", L["inputs"][2], mute=False, dest_label="Aux", dest_max=ma + sa, dest_labels=aux_labels),
+        ]
+
+    def __init__(self, config: MixerConfig):
+        super().__init__(config)
+        self._rx_status = 0
+        self._rx_data: list[int] = []
+        self._rx_cc: dict[int, dict[int, int]] = {}
+        self._waiters: dict[tuple[int, int, str], list[asyncio.Future[int]]] = {}
+
+    def _split(self, key_mono: str, key_stereo: str, n: int) -> tuple[int, int]:
+        L = DLIVE_LAYOUT[self.platform]
+        off, first, count = L[key_mono]
+        if n <= count:
+            return off, first + n - 1
+        off, first, count_st = L[key_stereo]
+        if n - count > count_st:
+            raise MixerError("Nummer außerhalb des Bereichs")
+        return off, first + (n - count) - 1
+
+    def address(self, target: Target) -> tuple[int, int]:
+        """(MIDI channel 0..15, note/CH) for a target."""
+        n = target.number or 1
+        L = DLIVE_LAYOUT[self.platform]
+        k = target.kind
+        if k in (K.CHANNEL, K.SEND):
+            off, first, _ = L["inputs"]
+            ch = (off, first + n - 1)
+        elif k == K.GROUP:
+            ch = self._split("mono_group", "stereo_group", n)
+        elif k == K.BUS:
+            ch = self._split("mono_aux", "stereo_aux", n)
+        elif k == K.MATRIX:
+            ch = self._split("mono_matrix", "stereo_matrix", n)
+        elif k == K.FX_SEND:
+            ch = self._split("mono_fx_send", "stereo_fx_send", n)
+        elif k in (K.FX_RETURN, K.MAIN, K.DCA, K.MUTE_GROUP):
+            off, first, _ = L[{K.FX_RETURN: "fx_return", K.MAIN: "main", K.DCA: "dca", K.MUTE_GROUP: "mute_group"}[k]]
+            ch = (off, first + n - 1)
+        else:
+            raise MixerError(f"nicht unterstützt: {k.value}")
+        midi = self.n + ch[0]
+        if midi > 15:
+            raise MixerError("MIDI-Basiskanal zu hoch (Basiskanal + 4 muss ≤ 16 sein)")
+        return midi, ch[1]
+
+    def mute_bytes(self, target: Target, muted: bool) -> list[int]:
+        midi, ch = self.address(target)
+        st = 0x90 | midi
+        return [st, ch, 0x7F if muted else 0x3F, st, ch, 0x00]
+
+    def level_bytes(self, target: Target, db: float | None) -> list[int]:
+        lv = dlive_level_value(db)
+        if target.kind == K.SEND:
+            midi, ch = self.address(target)
+            dest_midi, dest_ch = self.address(Target(K.BUS, target.dest or 1))
+            return AH_SYSEX_HEADER + [midi, 0x0D, ch, dest_midi, dest_ch, lv, 0xF7]
+        midi, ch = self.address(target)
+        b = 0xB0 | midi
+        return [b, 0x63, ch, b, 0x62, 0x17, b, 0x06, lv]
+
+    async def set_mute(self, target: Target, muted: bool) -> None:
+        self.validate(target, "mute")
+        await self.send(self.mute_bytes(target, muted))
+
+    async def set_level(self, target: Target, db: float | None) -> None:
+        self.validate(target, "level")
+        await self.send(self.level_bytes(target, db))
+
+    # ------------------------------------------------------------- queries (dLive documents get messages)
+
+    async def _get(self, request: list[int], key: tuple[int, int, str], timeout: float = 0.6) -> int | None:
+        loop = asyncio.get_running_loop()
+        fut: asyncio.Future[int] = loop.create_future()
+        self._waiters.setdefault(key, []).append(fut)
+        await self.send(request)
+        try:
+            return await asyncio.wait_for(fut, timeout)
+        except asyncio.TimeoutError:
+            return None
+        finally:
+            lst = self._waiters.get(key, [])
+            if fut in lst:
+                lst.remove(fut)
+
+    async def get_mute(self, target: Target) -> bool | None:
+        self.validate(target, "mute")
+        midi, ch = self.address(target)
+        v = await self._get(AH_SYSEX_HEADER + [midi, 0x05, 0x09, ch, 0xF7], (midi, ch, "mute"))
+        return None if v is None else v >= 0x40
+
+    async def get_level(self, target: Target) -> float | None:
+        self.validate(target, "level")
+        if target.kind == K.SEND:
+            return None
+        midi, ch = self.address(target)
+        v = await self._get(AH_SYSEX_HEADER + [midi, 0x05, 0x0B, 0x17, ch, 0xF7], (midi, ch, "level"))
+        return None if v is None else dlive_value_to_db(v)
+
+    def _resolve(self, key: tuple[int, int, str], value: int) -> None:
+        for fut in self._waiters.pop(key, []):
+            if not fut.done():
+                fut.set_result(value)
+
+    def _on_data(self, data: bytes) -> None:
+        for byte in data:
+            if byte >= 0xF8:
+                continue
+            if byte & 0x80:
+                self._rx_status = byte
+                self._rx_data = []
+                continue
+            if self._rx_status == 0xF0:  # ignore SysEx payload
+                continue
+            self._rx_data.append(byte)
+            if len(self._rx_data) < 2:
+                continue
+            a, b = self._rx_data
+            self._rx_data = []
+            midi = self._rx_status & 0x0F
+            kind = self._rx_status & 0xF0
+            if kind == 0x90 and b != 0:
+                self._resolve((midi, a, "mute"), b)
+            elif kind == 0xB0:
+                cc = self._rx_cc.setdefault(midi, {})
+                cc[a] = b
+                if a == 0x06 and cc.get(0x62) == 0x17 and 0x63 in cc:
+                    self._resolve((midi, cc[0x63], "level"), b)
+
+
+@register_driver
+class AllenHeathDliveDriver(_AhDliveBase):
+    type_id = "ah_dlive"
+    display_name = "Allen & Heath dLive"
+    platform = "dlive"
+    notes = ("MIDI über TCP (Port 51325 unverschlüsselt) an Surface oder MixRack, Firmware ≥ 1.9. Belegt 5 MIDI-Kanäle ab dem "
+             "Basiskanal. Aux/Gruppen/Matrix: erst Mono-, dann Stereo-Busse nummeriert. Mutes und Fader abfragbar.")
+
+
+@register_driver
+class AllenHeathAvantisDriver(_AhDliveBase):
+    type_id = "ah_avantis"
+    display_name = "Allen & Heath Avantis"
+    platform = "avantis"
+    can_query = False  # the Avantis protocol documents no get messages
+    notes = ("MIDI über TCP (Port 51325), Firmware ≥ 2.0. Belegt 5 MIDI-Kanäle ab dem Basiskanal (Utility › Control › MIDI). "
+             "Aux/Gruppen/Matrix: erst Mono-, dann Stereo-Busse nummeriert.")
+
+    async def get_mute(self, target: Target) -> bool | None:  # noqa: D102
+        return None
+
+    async def get_level(self, target: Target) -> float | None:  # noqa: D102
+        return None

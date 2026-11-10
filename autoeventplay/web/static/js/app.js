@@ -290,6 +290,7 @@
     el.innerHTML = `
       <div class="scribble" title="Doppelklick zum Umbenennen"><span class="name">${AEP.esc(ch.name)}</span><span class="sub">${AEP.esc(sub)}</span></div>
       ${type === "output" ? `<button class="strip-btn tone ${extras && extras.tone ? "on" : ""}" title="Testton 1 kHz / -18 dBFS">1 kHz</button>` : `<div class="strip-btn spacer" aria-hidden="true">&nbsp;</div>`}
+      <button class="strip-btn eq ${ch.eq_active ? "on" : ""}" title="Equalizer öffnen">EQ</button>
       <button class="strip-btn mute ${ch.muted ? "on" : ""}">MUTE</button>
       <div class="fader-area"><div class="meter"></div><div class="fader" aria-label="${AEP.esc(ch.name)}"></div></div>
       <div class="db-readout">${AEP.fmtDb(ch.level_db)}</div>`;
@@ -319,6 +320,14 @@
       try { await AEP.api(base + encodeURIComponent(ch.id) + "/tone", { enabled: on }); }
       catch (e) { tone.classList.toggle("on", !on); AEP.toast(e.message, "err"); }
     });
+    const eqBtn = el.querySelector(".eq");
+    eqBtn.addEventListener("click", () => {
+      if (!AEP.openEq) return;
+      AEP.openEq({
+        name: ch.name, eq: ch.eq, endpoint: base + encodeURIComponent(ch.id) + "/eq",
+        onSaved: (eq, active) => { ch.eq = eq; ch.eq_active = active; eqBtn.classList.toggle("on", active); },
+      });
+    });
     el.querySelector(".scribble").addEventListener("dblclick", async () => {
       const name = prompt("Name des Kanals", ch.name);
       if (!name || name === ch.name) return;
@@ -333,6 +342,7 @@
         if (!fader.dragging) showDb(c.level_db);
         muteBtn.classList.toggle("on", c.muted);
         el.classList.toggle("is-muted", c.muted);
+        if (c.eq) { ch.eq = c.eq; ch.eq_active = c.eq_active; eqBtn.classList.toggle("on", !!c.eq_active); }
       },
     };
   };

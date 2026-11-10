@@ -7,6 +7,8 @@ Mischpulte in der Signalkette (Kanäle entmuten, Pegel setzen, danach zurückset
 
 ![Mischpult-Oberfläche](docs/screenshot-mixer.png)
 
+![Equalizer](docs/screenshot-eq.png)
+
 ## Funktionen
 
 - **Kopplung per 6-stelligem Code** an eine Veranstaltung im eventrentmanager (alternativ Geräte-Token).
@@ -16,11 +18,14 @@ Mischpulte in der Signalkette (Kanäle entmuten, Pegel setzen, danach zurückset
 - **Routing-Matrix** Quellen × Ausgänge, beliebig viele Ausgänge auf mehreren Audio-Adaptern gleichzeitig.
 - **Fader** für jeden Ein- und Ausgang von −∞ bis +10 dB (Konsolen-Faderkurve), Mute, **Live-Meter**,
   Testton je Ausgang.
+- **Equalizer** auf jedem Ein- und Ausgang: 4 vollparametrische Bänder (Glocke, Low-/High-Shelf, Frequenz,
+  Gain ±18 dB, Q) plus Low-Cut und High-Cut (12/18/24 dB/Okt) – mit Frequenzgang-Kurve und ziehbaren Bandpunkten.
 - **Pultsteuerung („Cues“):** Je Abspiel-Event (Auftragsart, optional bestimmte Datei oder Titel) Aktionen
   vor dem Abspielen (entmuten / muten / Pegel, optional mit Fade) mit Checkbox „danach zurücksetzen“ sowie
   Aktionen nach dem Wiedergabeende. Mehrere Pulte, auch gleichen Typs.
 - **Unterstützte Pulte:** Behringer WING · Behringer X32 / Midas M32 · Behringer X-AIR / Midas M-AIR ·
-  Soundcraft Ui12/16/24R · Allen & Heath Qu (Qu-16/24/32/Pac/SB) · Allen & Heath SQ und Qu-5/6/7 ·
+  Yamaha TF, QL, CL, DM3, DM5, DM7 · Allen & Heath Qu (alt), SQ, Qu-5/6/7, Avantis, dLive ·
+  Soundcraft Ui12/16/24R · Soundcraft Si und Vi (experimentell) ·
   generisches OSC-Pult (Adressen per JSON, ohne Programmieren).
 - **Logs** live in der Weboberfläche, Download der Logdateien.
 - **Login** mit lokalem Administrator-Konto (beim ersten Aufruf angelegt).
@@ -78,9 +83,13 @@ Mit `AEP_AUDIO_BACKEND=null` läuft die Audio-Engine ohne Hardware (Meter und Ro
 | Behringer WING (alle Modelle) | OSC/UDP | 2223 | ja |
 | Behringer X32 / Midas M32 (alle Modelle) | OSC/UDP | 10023 | ja |
 | Behringer X-AIR / Midas M-AIR | OSC/UDP | 10024 | ja |
-| Soundcraft Ui12/Ui16/Ui24R | WebSocket (wie die Ui-Weboberfläche) | 80 | ja |
+| Yamaha TF, QL, CL, DM3, DM5, DM7 | RCP (Text über TCP) | 49280 | ja |
 | Allen & Heath Qu-16/24/32/Pac/SB | MIDI über TCP | 51325 | nein |
 | Allen & Heath SQ-5/6/7, Qu-5/6/7 | MIDI über TCP (NRPN) | 51325 | ja |
+| Allen & Heath dLive | MIDI über TCP | 51325 | ja |
+| Allen & Heath Avantis | MIDI über TCP | 51325 | nein |
+| Soundcraft Ui12/Ui16/Ui24R | WebSocket (wie die Ui-Weboberfläche) | 80 | ja |
+| Soundcraft Si / Vi (experimentell) | HiQnet über TCP | 3804 | ja (mit Adress-Map) |
 
 - **„Danach zurücksetzen“** stellt bei abfragbaren Pulten exakt den vorherigen Zustand wieder her. Bei der
   alten Qu-Serie wird ein Mute umgekehrt und der Pegel auf den eingetragenen Rücksetz-Pegel gestellt.
@@ -90,6 +99,13 @@ Mit `AEP_AUDIO_BACKEND=null` läuft die Audio-Engine ohne Hardware (Meter und Ro
   gesteuert. Die dB-Umrechnung der Ui-Fader ist eine Näherung und kann per Option kalibriert werden.
 - A&H: Der MIDI-Kanal muss mit dem am Pult eingestellten übereinstimmen; bei SQ/Qu-5/6/7 außerdem die
   „NRPN Fader Law“ (Audio/Linear). Die alte Qu-Serie erlaubt nur **eine** TCP-MIDI-Verbindung gleichzeitig.
+- **Yamaha:** Modell (z. B. CL5, TF3, DM7 Compact) im Pult auswählen – davon hängen Kanal- und Busanzahl ab.
+  „ON“ bei Yamaha entspricht einem nicht gemuteten Kanal; das übersetzt der Treiber.
+- **dLive/Avantis:** Das Pult belegt fünf MIDI-Kanäle ab dem eingestellten Basiskanal (Utility › Control › MIDI).
+  Aux, Gruppen und Matrizen sind erst als Mono-, dann als Stereo-Busse durchnummeriert.
+- **Soundcraft Si/Vi:** Soundcraft veröffentlicht für diese Serien keine Steuerschnittstelle; der Treiber
+  spricht HiQnet wie ViSi Remote, die Parameter-Adressen müssen aber in der Adress-Map eingetragen werden
+  (siehe [docs/mischpulte.md](docs/mischpulte.md#soundcraft-si--vi-hiqnet)). Bitte vor dem Einsatz testen.
 - Weitere Fabrikate: siehe [docs/mischpulte.md](docs/mischpulte.md).
 
 ## Dante

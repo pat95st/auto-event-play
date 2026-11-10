@@ -38,8 +38,13 @@ autoeventplay/
 
 ## Audio-Engine
 
-Pro Block: Voices → Quell-Busse (Medien L/R, TTS, Aufnahme) → Eingangsfader/Mute → Meter →
-Matrix (Eingänge × Ausgänge) → Ausgangsfader/Mute → Meter → Geräte. Das erste Gerät der Ausgangsliste ist
+Pro Block: Voices → Quell-Busse (Medien L/R, TTS, Aufnahme) → Eingangs-EQ → Eingangsfader/Mute → Meter →
+Matrix (Eingänge × Ausgänge) → Ausgangs-EQ → Ausgangsfader/Mute → Meter → Geräte.
+
+Der EQ (`domain/eq.py`) besteht aus Low-Cut, vier vollparametrischen Bändern und High-Cut. Die Koeffizienten
+(RBJ-Cookbook bzw. Butterworth) werden bei jeder Änderung neu berechnet und als Second-Order-Sections mit
+`scipy.signal.sosfilt` gefiltert; der Filterzustand bleibt bei Änderungen erhalten (keine Knackser). Ein
+flacher oder ausgeschalteter EQ wird komplett umgangen. Das erste Gerät der Ausgangsliste ist
 Taktgeber; weitere Geräte werden über kleine Ringpuffer versorgt. Ohne Gerät taktet ein Timer-Thread.
 
 ## Wiedergabe

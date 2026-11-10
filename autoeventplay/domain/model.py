@@ -50,6 +50,7 @@ class InputChannel:
     name: str
     level_db: float = 0.0
     muted: bool = False
+    eq: dict[str, Any] | None = None   # see domain/eq.py
 
 
 @dataclass
@@ -61,6 +62,7 @@ class OutputChannel:
     level_db: float = 0.0
     muted: bool = False
     sort: int = 0
+    eq: dict[str, Any] | None = None   # see domain/eq.py
 
 
 @dataclass

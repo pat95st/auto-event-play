@@ -27,6 +27,16 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def _eq(raw: str | None) -> dict[str, Any] | None:
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
 class SettingsRepository:
     """Key/value settings stored as JSON."""
 
@@ -93,13 +103,14 @@ class RoutingRepository:
     def load(self) -> RoutingState:
         order = {d.id: i for i, d in enumerate(INPUT_DEFS)}
         inputs = [
-            InputChannel(r["id"], r["name"], float(r["level_db"]), bool(r["muted"]))
+            InputChannel(r["id"], r["name"], float(r["level_db"]), bool(r["muted"]), _eq(r.get("eq")))
             for r in self.db.fetchall("SELECT * FROM input_channels")
             if r["id"] in order
         ]
         inputs.sort(key=lambda i: order[i.id])
         outputs = [
-            OutputChannel(r["id"], r["name"], r["device"], int(r["channel"]), float(r["level_db"]), bool(r["muted"]), int(r["sort"]))
+            OutputChannel(r["id"], r["name"], r["device"], int(r["channel"]), float(r["level_db"]), bool(r["muted"]), int(r["sort"]),
+                          _eq(r.get("eq")))
             for r in self.db.fetchall("SELECT * FROM output_channels ORDER BY sort, id")
         ]
         cps = {(r["input_id"], r["output_id"]) for r in self.db.fetchall("SELECT * FROM crosspoints")}
@@ -120,6 +131,10 @@ class RoutingRepository:
             self.db.execute("UPDATE output_channels SET muted = ? WHERE id = ?", (int(muted), output_id))
         if name is not None:
             self.db.execute("UPDATE output_channels SET name = ? WHERE id = ?", (name, output_id))
+
+    def set_eq(self, channel_type: str, channel_id: str, eq: dict[str, Any]) -> None:
+        table = "input_channels" if channel_type == "input" else "output_channels"
+        self.db.execute(f"UPDATE {table} SET eq = ? WHERE id = ?", (json.dumps(eq), channel_id))
 
     def set_crosspoint(self, input_id: str, output_id: str, enabled: bool) -> None:
         if enabled:

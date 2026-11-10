@@ -96,6 +96,11 @@ MIGRATIONS: list[str] = [
         updated_at TEXT NOT NULL
     );
     """,
+    # 2: channel equalizers
+    """
+    ALTER TABLE input_channels ADD COLUMN eq TEXT;
+    ALTER TABLE output_channels ADD COLUMN eq TEXT
+    """,
 ]
 
 

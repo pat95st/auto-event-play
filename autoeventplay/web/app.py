@@ -266,6 +266,8 @@ def create_app(services: Services) -> Starlette:
         Route("/api/outputs/{id}/level", command(lambda r, d: c.SetOutputLevel(p(r, "id"), d["level_db"])), methods=["POST"]),
         Route("/api/outputs/{id}/mute", command(lambda r, d: c.SetOutputMute(p(r, "id"), bool(d["muted"]))), methods=["POST"]),
         Route("/api/outputs/{id}/name", command(lambda r, d: c.RenameChannel("output", p(r, "id"), d["name"])), methods=["POST"]),
+        Route("/api/inputs/{id}/eq", command(lambda r, d: c.SetChannelEq("input", p(r, "id"), dict(d["eq"]))), methods=["POST"]),
+        Route("/api/outputs/{id}/eq", command(lambda r, d: c.SetChannelEq("output", p(r, "id"), dict(d["eq"]))), methods=["POST"]),
         Route("/api/outputs/{id}/tone", command(lambda r, d: c.SetTestTone(p(r, "id"), bool(d["enabled"]))), methods=["POST"]),
         Route("/api/outputs", command(lambda r, d: c.ConfigureOutputs(list(d["outputs"]))), methods=["POST"]),
         Route("/api/crosspoints", command(lambda r, d: c.SetCrosspoint(d["input_id"], d["output_id"], bool(d["enabled"]))), methods=["POST"]),

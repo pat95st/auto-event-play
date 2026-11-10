@@ -9,6 +9,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from .. import __version__
+from ..domain.eq import is_active, normalize_eq
 from ..domain.levels import db_to_fader
 from ..domain.model import INPUT_DEFS
 from ..infrastructure.audio.engine import AudioEngine
@@ -28,9 +29,10 @@ def register_query_handlers(bus: QueryBus, s: "Services") -> None:
         bus_of = {d.id: d.bus.value for d in INPUT_DEFS}
         return {
             "inputs": [{"id": i.id, "name": i.name, "level_db": i.level_db, "muted": i.muted, "bus": bus_of.get(i.id),
-                        "fader": db_to_fader(i.level_db)} for i in state.inputs],
+                        "fader": db_to_fader(i.level_db), "eq": normalize_eq(i.eq), "eq_active": is_active(i.eq)} for i in state.inputs],
             "outputs": [{"id": o.id, "name": o.name, "device": o.device, "channel": o.channel, "level_db": o.level_db,
-                         "muted": o.muted, "fader": db_to_fader(o.level_db)} for o in state.outputs],
+                         "muted": o.muted, "fader": db_to_fader(o.level_db), "eq": normalize_eq(o.eq), "eq_active": is_active(o.eq)}
+                        for o in state.outputs],
             "crosspoints": sorted([list(cp) for cp in state.crosspoints]),
         }
 

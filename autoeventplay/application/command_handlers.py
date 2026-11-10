@@ -7,6 +7,7 @@ import logging
 import re
 from typing import TYPE_CHECKING
 
+from ..domain.eq import is_active, normalize_eq
 from ..domain.levels import MAX_DB, MIN_DB
 from ..domain.model import (
     INPUT_IDS,
@@ -81,6 +82,18 @@ def register_command_handlers(bus: CommandBus, s: "Services") -> None:
             _output(cmd.channel_id)
             s.routing_repo.set_output(cmd.channel_id, name=name)
         s.refresh_routing()
+
+    def set_channel_eq(cmd: c.SetChannelEq) -> dict:
+        if cmd.channel_type == "input":
+            _input(cmd.channel_id)
+        elif cmd.channel_type == "output":
+            _output(cmd.channel_id)
+        else:
+            raise DomainError("Unbekannter Kanaltyp")
+        eq = normalize_eq(cmd.eq)
+        s.routing_repo.set_eq(cmd.channel_type, cmd.channel_id, eq)
+        s.refresh_routing()
+        return {"eq": eq, "active": is_active(eq)}
 
     def set_crosspoint(cmd: c.SetCrosspoint) -> None:
         _input(cmd.input_id)
@@ -359,7 +372,7 @@ def register_command_handlers(bus: CommandBus, s: "Services") -> None:
     for message, handler in [
         (c.SetInputLevel, set_input_level), (c.SetInputMute, set_input_mute),
         (c.SetOutputLevel, set_output_level), (c.SetOutputMute, set_output_mute),
-        (c.RenameChannel, rename_channel), (c.SetCrosspoint, set_crosspoint),
+        (c.RenameChannel, rename_channel), (c.SetCrosspoint, set_crosspoint), (c.SetChannelEq, set_channel_eq),
         (c.ConfigureOutputs, configure_outputs), (c.SetTestTone, set_test_tone),
         (c.SaveAudioSettings, save_audio_settings), (c.SaveTtsSettings, save_tts_settings),
         (c.SaveMixer, save_mixer), (c.DeleteMixer, delete_mixer), (c.TestMixer, test_mixer),

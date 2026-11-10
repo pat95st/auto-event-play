@@ -27,8 +27,10 @@ from typing import Any, Callable
 
 import numpy as np
 
+from ...domain.eq import design_sos
 from ...domain.levels import MIN_DB, db_to_gain, gain_to_db
 from ...domain.model import INPUT_DEFS, RoutingState, SourceBus
+from .eq_processor import EqState
 
 log = logging.getLogger("aep.audio")
 
@@ -120,6 +122,9 @@ class _Snapshot:
     matrix: np.ndarray
     # device name -> list of (output column index, device channel)
     device_map: dict[str, list[tuple[int, int]]] = field(default_factory=dict)
+    # EQ states per column (None = bypass)
+    input_eq: list[EqState | None] = field(default_factory=list)
+    output_eq: list[EqState | None] = field(default_factory=list)
 
 
 class _DeviceStream:
@@ -155,6 +160,8 @@ class AudioEngine:
         self._tone_phase = 0.0
         self.status_message = "gestoppt"
         self.callback_errors = 0
+        self._eq_states: dict[str, EqState] = {}
+        self._last_state: RoutingState | None = None
 
     # ------------------------------------------------------------------ setup
 
@@ -163,6 +170,7 @@ class AudioEngine:
 
     def apply_routing(self, state: RoutingState) -> None:
         """Rebuild the routing snapshot (cheap; safe to call on every fader move)."""
+        self._last_state = state
         input_ids = [d.id for d in INPUT_DEFS]
         by_id = {i.id: i for i in state.inputs}
         in_gains = np.array([
@@ -178,7 +186,9 @@ class AudioEngine:
         device_map: dict[str, list[tuple[int, int]]] = {}
         for k, o in enumerate(outputs):
             device_map.setdefault(o.device, []).append((k, o.channel))
-        snap = _Snapshot(input_ids, [o.id for o in outputs], in_gains, out_gains, matrix, device_map)
+        in_eq = [self._eq_state("in:" + i, by_id[i].eq if i in by_id else None) for i in input_ids]
+        out_eq = [self._eq_state("out:" + o.id, o.eq) for o in outputs]
+        snap = _Snapshot(input_ids, [o.id for o in outputs], in_gains, out_gains, matrix, device_map, in_eq, out_eq)
         with self._lock:
             layout_changed = self._snap is None or self._snap.device_map != snap.device_map
             self._snap = snap
@@ -187,6 +197,17 @@ class AudioEngine:
         if layout_changed and self._running:
             log.info("Output layout changed, restarting audio devices")
             self.restart()
+
+    def _eq_state(self, key: str, eq: dict | None) -> EqState | None:
+        sos = design_sos(eq, self.sample_rate)
+        if sos is None:
+            self._eq_states.pop(key, None)
+            return None
+        state = self._eq_states.get(key)
+        if state is None:
+            state = self._eq_states[key] = EqState()
+        state.update(sos)
+        return state
 
     def start(self) -> None:
         with self._lock:
@@ -207,6 +228,9 @@ class AudioEngine:
     def set_format(self, sample_rate: int, blocksize: int) -> None:
         changed = (sample_rate, blocksize) != (self.sample_rate, self.blocksize)
         self.sample_rate, self.blocksize = sample_rate, blocksize
+        if changed and self._last_state is not None:
+            self._eq_states.clear()
+            self.apply_routing(self._last_state)
         if changed and self._running:
             self.restart()
 
@@ -412,9 +436,15 @@ class AudioEngine:
         x = np.empty((frames, len(INPUT_DEFS)), dtype=np.float32)
         for k, d in enumerate(INPUT_DEFS):
             x[:, k] = buses[d.bus][:, d.bus_channel]
+        for k, eq in enumerate(snap.input_eq):
+            if eq is not None:
+                x[:, k] = eq.process(x[:, k])
         x *= snap.input_gains
         peak_in = np.abs(x).max(axis=0) if frames else np.zeros(len(INPUT_DEFS))
         y = x @ snap.matrix if n_out else np.zeros((frames, 0), dtype=np.float32)
+        for k, eq in enumerate(snap.output_eq):
+            if eq is not None:
+                y[:, k] = eq.process(y[:, k])
         y *= snap.output_gains
         if self._test_tones:
             t = (self._tone_phase + np.arange(frames)) / self.sample_rate

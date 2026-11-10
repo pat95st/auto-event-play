@@ -42,6 +42,13 @@ class RenameChannel(Command):
 
 
 @dataclass
+class SetChannelEq(Command):
+    channel_type: str  # input | output
+    channel_id: str
+    eq: dict[str, Any]
+
+
+@dataclass
 class SetCrosspoint(Command):
     input_id: str
     output_id: str
