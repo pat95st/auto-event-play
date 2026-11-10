@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-xl-7">
+    <div class="aep-panel">
+      <div class="aep-panel-head"><span>Gekoppelte Mischpulte</span><button class="btn btn-sm btn-console" id="btn-new">+ Pult hinzufügen</button></div>
+      <div class="aep-panel-body">
+        <table class="table align-middle mb-0">
+          <thead><tr><th>Name</th><th>Typ</th><th>Adresse</th><th>Status</th><th></th></tr></thead>
+          <tbody id="mixers"><tr><td colspan="5" class="text-dim">Lade …</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="aep-panel mt-3">
+      <div class="aep-panel-head"><span>Manuell schalten</span></div>
+      <div class="aep-panel-body">
+        <p class="form-text mt-0">Zum Prüfen der Adressierung: Ziel wählen und direkt Mute/Unmute bzw. einen Pegel senden.</p>
+        <div class="row g-2 align-items-end" id="manual">
+          <div class="col-md-3"><label class="form-label">Pult</label><select class="form-select form-select-sm" id="m-mixer"></select></div>
+          <div class="col-md-5" id="m-target"></div>
+          <div class="col-md-2"><label class="form-label">Pegel dB</label><input class="form-control form-control-sm" id="m-level" type="number" step="0.5" min="-90" max="10" placeholder="—"></div>
+          <div class="col-md-2 d-flex gap-1">
+            <button class="btn btn-sm btn-console flex-fill" data-m="unmute">An</button>
+            <button class="btn btn-sm btn-console flex-fill" data-m="mute">Mute</button>
+            <button class="btn btn-sm btn-console flex-fill" data-m="level">dB</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-5">
+    <div class="aep-panel" id="editor" hidden>
+      <div class="aep-panel-head"><span id="editor-title">Pult</span><button class="btn-close btn-close-white btn-sm" id="btn-close" aria-label="Schließen"></button></div>
+      <div class="aep-panel-body">
+        <form id="mixer-form">
+          <input type="hidden" name="id">
+          <div class="row g-2">
+            <div class="col-md-6"><label class="form-label">Name</label><input class="form-control" name="name" required placeholder="z. B. FOH WING"></div>
+            <div class="col-md-6"><label class="form-label">Typ</label><select class="form-select" name="type" id="type-select"></select></div>
+            <div class="col-md-8"><label class="form-label">IP-Adresse / Host</label><input class="form-control" name="host" required placeholder="192.168.1.20"></div>
+            <div class="col-md-4"><label class="form-label">Port</label><input class="form-control" name="port" type="number" min="1" max="65535"></div>
+          </div>
+          <div id="type-notes" class="form-text my-2"></div>
+          <div id="type-options" class="row g-2"></div>
+          <div class="form-check form-switch my-3"><input class="form-check-input" type="checkbox" name="enabled" id="enabled" checked><label class="form-check-label" for="enabled">aktiv (wird bei Cues angesteuert)</label></div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-primary" type="submit">Speichern</button>
+            <button class="btn btn-outline-danger ms-auto" type="button" id="btn-delete">Löschen</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div class="aep-panel mt-3">
+      <div class="aep-panel-head"><span>Unterstützte Pulte</span></div>
+      <div class="aep-panel-body small" id="types-info"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/targets.js?v={{ version }}"></script>
+<script>
+(function () {
+  let types = [], mixers = [];
+  const form = document.getElementById("mixer-form");
+  const typeSel = document.getElementById("type-select");
+
+  async function load() {
+    [types, mixers] = await Promise.all([AEP.api("/api/mixer-types").then((r) => r.types), AEP.api("/api/mixers").then((r) => r.mixers)]);
+    typeSel.innerHTML = types.map((t) => `<option value="${t.type_id}">${AEP.esc(t.display_name)}</option>`).join("");
+    document.getElementById("types-info").innerHTML = types.map((t) => `<div class="mb-2"><strong>${AEP.esc(t.display_name)}</strong> <span class="badge text-bg-dark">${AEP.esc(t.transport)}${t.default_port ? " · Port " + t.default_port : ""}</span>${t.can_query ? ' <span class="badge text-bg-dark" title="Pult meldet aktuelle Werte – exaktes Zurücksetzen möglich">abfragbar</span>' : ""}<div class="text-dim">${AEP.esc(t.notes || "")}</div></div>`).join("");
+    renderList();
+    renderManual();
+  }
+
+  function renderList() {
+    const tb = document.getElementById("mixers");
+    if (!mixers.length) { tb.innerHTML = '<tr><td colspan="5" class="text-dim">Noch kein Pult angelegt.</td></tr>'; return; }
+    tb.innerHTML = mixers.map((m) => {
+      const st = m.status || {};
+      const dot = !m.enabled ? "" : st.ok === true ? "ok" : st.ok === false ? "err" : "";
+      return `<tr><td><strong>${AEP.esc(m.name)}</strong>${m.enabled ? "" : ' <span class="badge text-bg-secondary">inaktiv</span>'}</td>
+        <td class="small">${AEP.esc(m.driver ? m.driver.display_name : m.type)}</td>
+        <td class="mono small">${AEP.esc(m.host)}${m.port ? ":" + m.port : ""}</td>
+        <td class="small"><span class="aep-dot ${dot}"></span> <span class="text-dim">${AEP.esc(st.message || "")}</span></td>
+        <td class="text-end text-nowrap"><button class="btn btn-sm btn-console" data-test="${m.id}">Testen</button> <button class="btn btn-sm btn-console" data-edit="${m.id}">Bearbeiten</button></td></tr>`;
+    }).join("");
+  }
+
+  function typeById(id) { return types.find((t) => t.type_id === id); }
+
+  function renderOptions(type, values) {
+    const t = typeById(type);
+    document.getElementById("type-notes").textContent = t ? t.notes : "";
+    form.port.placeholder = t && t.default_port ? String(t.default_port) : "";
+    document.getElementById("type-options").innerHTML = (t ? t.options : []).map((o) => {
+      const v = values && values[o.key] != null ? values[o.key] : (o.default != null ? o.default : "");
+      let input;
+      if (o.type === "select") input = `<select class="form-select" data-opt="${o.key}">${o.choices.map((c) => `<option value="${AEP.esc(c[0])}" ${String(v) === c[0] ? "selected" : ""}>${AEP.esc(c[1])}</option>`).join("")}</select>`;
+      else if (o.type === "json") input = `<textarea class="form-control mono small" rows="8" data-opt="${o.key}">${AEP.esc(typeof v === "string" ? v : JSON.stringify(v, null, 2))}</textarea>`;
+      else input = `<input class="form-control" data-opt="${o.key}" type="${o.type === "int" ? "number" : "text"}" value="${AEP.esc(v)}">`;
+      return `<div class="${o.type === "json" ? "col-12" : "col-md-6"}"><label class="form-label">${AEP.esc(o.label)}</label>${input}${o.help ? `<div class="form-text">${AEP.esc(o.help)}</div>` : ""}</div>`;
+    }).join("");
+  }
+
+  function openEditor(m) {
+    document.getElementById("editor").hidden = false;
+    document.getElementById("editor-title").textContent = m ? "Pult bearbeiten" : "Neues Pult";
+    form.id.value = m ? m.id : "";
+    form.name.value = m ? m.name : "";
+    form.type.value = m ? m.type : types[0].type_id;
+    form.host.value = m ? m.host : "";
+    form.port.value = m && m.port ? m.port : "";
+    form.enabled.checked = m ? m.enabled : true;
+    document.getElementById("btn-delete").hidden = !m;
+    renderOptions(form.type.value, m ? m.options : null);
+    form.name.focus();
+  }
+
+  typeSel.addEventListener("change", () => { form.port.value = ""; renderOptions(typeSel.value, null); });
+  document.getElementById("btn-new").addEventListener("click", () => openEditor(null));
+  document.getElementById("btn-close").addEventListener("click", () => { document.getElementById("editor").hidden = true; });
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const options = {};
+    document.querySelectorAll("[data-opt]").forEach((el) => { options[el.dataset.opt] = el.value; });
+    await AEP.run(() => AEP.api("/api/mixers/save", { id: form.id.value, name: form.name.value, type: form.type.value, host: form.host.value, port: form.port.value, enabled: form.enabled.checked, options }), "Pult gespeichert");
+    document.getElementById("editor").hidden = true;
+    load();
+  });
+  document.getElementById("btn-delete").addEventListener("click", async () => {
+    if (!confirm("Pult wirklich löschen?")) return;
+    await AEP.run(() => AEP.api("/api/mixers/" + form.id.value + "/delete", {}), "Pult gelöscht");
+    document.getElementById("editor").hidden = true;
+    load();
+  });
+  document.getElementById("mixers").addEventListener("click", async (e) => {
+    const edit = e.target.closest("[data-edit]"), test = e.target.closest("[data-test]");
+    if (edit) openEditor(mixers.find((m) => m.id === edit.dataset.edit));
+    if (test) {
+      test.disabled = true;
+      try { await AEP.run(() => AEP.api("/api/mixers/" + test.dataset.test + "/test", {}), (r) => r); } catch (ex) { /* shown */ }
+      test.disabled = false;
+      mixers = (await AEP.api("/api/mixers")).mixers; renderList();
+    }
+  });
+
+  // manual control
+  let picker = null;
+  function renderManual() {
+    const sel = document.getElementById("m-mixer");
+    sel.innerHTML = mixers.length ? mixers.map((m) => `<option value="${m.id}">${AEP.esc(m.name)}</option>`).join("") : '<option value="">— kein Pult —</option>';
+    const update = () => {
+      const m = mixers.find((x) => x.id === sel.value);
+      picker = m && m.driver ? AEP.targetPicker(document.getElementById("m-target"), m.driver.kinds, null) : null;
+      if (!m) document.getElementById("m-target").innerHTML = "";
+    };
+    sel.onchange = update;
+    update();
+  }
+  document.getElementById("manual").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-m]");
+    if (!b || !picker) return;
+    const mode = b.dataset.m;
+    const lvl = document.getElementById("m-level").value;
+    if (mode === "level" && lvl === "") { AEP.toast("Bitte einen Pegel eingeben", "err"); return; }
+    AEP.run(() => AEP.api("/api/mixers/" + document.getElementById("m-mixer").value + "/action", {
+      target: picker.value(), mute: mode === "level" ? "unchanged" : mode, level_db: mode === "level" ? parseFloat(lvl) : null,
+    }), (r) => "Gesendet: " + r);
+  });
+  load();
+})();
+</script>
+{% endblock %}

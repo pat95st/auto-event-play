@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="aep-panel">
+  <div class="aep-panel-head flex-wrap">
+    <span>Logdateien</span>
+    <div class="d-flex gap-2 align-items-center flex-wrap" style="text-transform:none;letter-spacing:0;font-weight:400">
+      <select class="form-select form-select-sm w-auto" id="level">
+        <option value="DEBUG">alles</option><option value="INFO" selected>Info</option><option value="WARNING">Warnungen</option><option value="ERROR">Fehler</option>
+      </select>
+      <input class="form-control form-control-sm" style="width:200px" id="filter" placeholder="Filter …">
+      <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" id="follow" checked><label class="form-check-label small" for="follow">live</label></div>
+      <select class="form-select form-select-sm w-auto" id="files"></select>
+      <a class="btn btn-sm btn-console" id="download" href="/api/logs/download">Herunterladen</a>
+    </div>
+  </div>
+  <div class="aep-panel-body"><div class="log-view" id="log" aria-live="polite"></div></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const view = document.getElementById("log");
+  const levelSel = document.getElementById("level"), filter = document.getElementById("filter"), follow = document.getElementById("follow");
+  const ORDER = { DEBUG: 10, INFO: 20, WARNING: 30, ERROR: 40, CRITICAL: 50 };
+  let last = 0;
+  function line(e) {
+    const div = document.createElement("div");
+    div.className = "log-line log-" + e.level;
+    div.innerHTML = `<span class="t">${AEP.esc(e.time.replace("T", " "))}</span> <span class="l">${e.level}</span> <span class="g">${AEP.esc(e.logger)}</span> ${AEP.esc(e.message)}`;
+    return div;
+  }
+  function accept(e) {
+    if (ORDER[e.level] < ORDER[levelSel.value]) return false;
+    const f = filter.value.trim().toLowerCase();
+    return !f || e.message.toLowerCase().includes(f) || e.logger.toLowerCase().includes(f);
+  }
+  function append(entries) {
+    const atBottom = view.scrollTop + view.clientHeight >= view.scrollHeight - 30;
+    const frag = document.createDocumentFragment();
+    entries.filter(accept).forEach((e) => frag.appendChild(line(e)));
+    view.appendChild(frag);
+    while (view.childElementCount > 3000) view.firstElementChild.remove();
+    if (follow.checked && atBottom) view.scrollTop = view.scrollHeight;
+  }
+  async function reload() {
+    const d = await AEP.api(`/api/logs?level=${levelSel.value}&text=${encodeURIComponent(filter.value)}&limit=2000`);
+    view.innerHTML = "";
+    append(d.entries);
+    view.scrollTop = view.scrollHeight;
+    last = d.last;
+  }
+  AEP.on("log", (e) => { if (follow.checked && e.seq > last) { last = e.seq; append([e]); } });
+  levelSel.addEventListener("change", reload);
+  let t; filter.addEventListener("input", () => { clearTimeout(t); t = setTimeout(reload, 250); });
+  AEP.api("/api/logs/files").then((d) => {
+    const sel = document.getElementById("files");
+    sel.innerHTML = d.files.map((f) => `<option value="${AEP.esc(f.name)}">${AEP.esc(f.name)} (${(f.size / 1024).toFixed(0)} kB)</option>`).join("");
+    const upd = () => { document.getElementById("download").href = "/api/logs/download?file=" + encodeURIComponent(sel.value); };
+    sel.addEventListener("change", upd); upd();
+  });
+  reload();
+})();
+</script>
+{% endblock %}

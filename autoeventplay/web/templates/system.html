@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-xl-6">
+    <div class="aep-panel">
+      <div class="aep-panel-head"><span>System</span></div>
+      <div class="aep-panel-body"><dl class="row mb-0 small" id="info"></dl></div>
+    </div>
+  </div>
+  <div class="col-xl-6 d-flex flex-column gap-3">
+    <div class="aep-panel">
+      <div class="aep-panel-head"><span>Passwort ändern</span></div>
+      <div class="aep-panel-body">
+        <form id="pw-form" class="row g-2">
+          <div class="col-12"><label class="form-label">Aktuelles Passwort</label><input class="form-control" type="password" name="current_password" autocomplete="current-password" required></div>
+          <div class="col-md-6"><label class="form-label">Neues Passwort</label><input class="form-control" type="password" name="new_password" minlength="8" autocomplete="new-password" required></div>
+          <div class="col-md-6"><label class="form-label">Wiederholen</label><input class="form-control" type="password" name="new_password2" minlength="8" autocomplete="new-password" required></div>
+          <div class="col-12"><button class="btn btn-console" type="submit">Ändern</button></div>
+        </form>
+      </div>
+    </div>
+    <div class="aep-panel">
+      <div class="aep-panel-head"><span>Architektur (CQRS)</span></div>
+      <div class="aep-panel-body small" id="cqrs"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  AEP.api("/api/system").then((d) => {
+    const up = d.uptime_s, h = Math.floor(up / 3600), m = Math.floor((up % 3600) / 60);
+    const rows = [["Version", d.version], ["Hostname", d.hostname], ["IP-Adressen", d.ip_addresses.join(", ") || "—"], ["Plattform", d.platform], ["Python", d.python],
+      ["Laufzeit", `${h} h ${m} min`], ["Datenverzeichnis", d.data_dir], ["Freier Speicher", d.disk_free_mb + " MB"], ["Benutzer", d.users.join(", ")]];
+    document.getElementById("info").innerHTML = rows.map((r) => `<dt class="col-sm-4 text-dim fw-normal">${r[0]}</dt><dd class="col-sm-8 mono">${AEP.esc(r[1])}</dd>`).join("");
+    document.getElementById("cqrs").innerHTML = `<p class="mb-2">Schreibende Aktionen laufen als <strong>Commands</strong>, lesende als <strong>Queries</strong> über getrennte Busse.</p>
+      <div class="mb-1 text-dim">Commands (${d.commands.commands.length})</div><div class="mono mb-2">${d.commands.commands.map(AEP.esc).join(", ")}</div>
+      <div class="mb-1 text-dim">Queries (${d.commands.queries.length})</div><div class="mono">${d.commands.queries.map(AEP.esc).join(", ")}</div>`;
+  });
+  document.getElementById("pw-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (e.target.new_password.value !== e.target.new_password2.value) { AEP.toast("Die neuen Passwörter stimmen nicht überein", "err"); return; }
+    await AEP.run(() => AEP.api("/api/account/password", { current_password: e.target.current_password.value, new_password: e.target.new_password.value }), "Passwort geändert");
+    e.target.reset();
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-xl-8">
+    <div class="aep-panel">
+      <div class="aep-panel-head"><span>Routing-Matrix</span><span class="text-dim" style="text-transform:none;letter-spacing:0;font-weight:400">Klick auf einen Kreuzpunkt schaltet die Quelle auf den Ausgang</span></div>
+      <div class="aep-panel-body overflow-auto"><table class="matrix" id="matrix"></table></div>
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="aep-panel">
+      <div class="aep-panel-head"><span>Hinweise</span></div>
+      <div class="aep-panel-body small">
+        <p><strong>Quellen:</strong> <span class="text-dim">Medien L/R</span> sind Jingles und Audio-Dateien (stereo, getrennt routbar), <span class="text-dim">TTS</span> ist die automatische Sprachausgabe, <span class="text-dim">Aufnahme</span> die im eventrentmanager aufgenommenen Durchsagen. Der Gong läuft jeweils über die Quelle der Durchsage.</p>
+        <p><strong>Beispiel:</strong> Medien L + R → Out 1 ergibt eine Mono-Summe der Musik, TTS + Aufnahme → Out 2 eine Summe der Sprache – so lassen sich Musik und Sprache am Pult getrennt regeln.</p>
+        <p class="mb-0">Mehrere Quellen auf einem Ausgang werden summiert. Pegel und Mutes stellst du auf der Seite <a href="/">Mischpult</a> ein, die Ausgänge selbst unter <a href="/audio">Audio</a>.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  async function load() {
+    const r = await AEP.api("/api/routing");
+    const on = new Set(r.crosspoints.map((c) => c[0] + "|" + c[1]));
+    const t = document.getElementById("matrix");
+    let html = "<thead><tr><th></th>" + r.outputs.map((o) => `<th><div class="out-head">${AEP.esc(o.name)}</div></th>`).join("") + "</tr></thead><tbody>";
+    r.inputs.forEach((i) => {
+      html += `<tr data-bus="${i.bus}"><th class="row-head"><span class="bus-chip"></span>${AEP.esc(i.name)}</th>` +
+        r.outputs.map((o) => `<td><button class="xp ${on.has(i.id + "|" + o.id) ? "on" : ""}" data-in="${AEP.esc(i.id)}" data-out="${AEP.esc(o.id)}" aria-pressed="${on.has(i.id + "|" + o.id)}" title="${AEP.esc(i.name)} → ${AEP.esc(o.name)}"></button></td>`).join("") + "</tr>";
+    });
+    t.innerHTML = html + "</tbody>";
+  }
+  document.getElementById("matrix").addEventListener("click", async (e) => {
+    const b = e.target.closest(".xp");
+    if (!b) return;
+    const enabled = !b.classList.contains("on");
+    b.classList.toggle("on", enabled);
+    b.setAttribute("aria-pressed", String(enabled));
+    try { await AEP.api("/api/crosspoints", { input_id: b.dataset.in, output_id: b.dataset.out, enabled }); }
+    catch (ex) { b.classList.toggle("on", !enabled); AEP.toast(ex.message, "err"); }
+  });
+  load();
+})();
+</script>
+{% endblock %}

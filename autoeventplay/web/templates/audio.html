@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-xl-7 d-flex flex-column gap-3">
+    <div class="aep-panel">
+      <div class="aep-panel-head"><span>Ausgänge</span><button class="btn btn-sm btn-console" id="btn-add">+ Kanal</button></div>
+      <div class="aep-panel-body">
+        <p class="form-text mt-0">Jeder Ausgang ist ein physischer Kanal eines Audio-Adapters (Klinke, USB-Interface, HDMI, Dante-Adapter …). Mehrere Adapter können gleichzeitig genutzt werden; der erste Adapter in der Liste gibt den Takt vor.</p>
+        <table class="table table-sm align-middle"><thead><tr><th style="width:28%">Name</th><th>Gerät</th><th style="width:110px">Kanal</th><th></th></tr></thead><tbody id="outputs"></tbody></table>
+        <div class="d-flex gap-2 flex-wrap">
+          <button class="btn btn-primary" id="btn-save-outputs">Ausgänge speichern</button>
+          <button class="btn btn-console" id="btn-add-device" title="Alle Kanäle eines Geräts hinzufügen">+ Alle Kanäle eines Geräts</button>
+        </div>
+      </div>
+    </div>
+    <div class="aep-panel">
+      <div class="aep-panel-head"><span>Erkannte Audiogeräte</span><span class="text-dim" id="engine-status"></span></div>
+      <div class="aep-panel-body">
+        <table class="table table-sm mb-0"><thead><tr><th>Gerät</th><th>Kanäle</th><th>Treiber</th><th>Status</th></tr></thead><tbody id="devices"></tbody></table>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-5 d-flex flex-column gap-3">
+    <div class="aep-panel">
+      <div class="aep-panel-head"><span>Audio-Engine</span></div>
+      <div class="aep-panel-body">
+        <form id="engine-form" class="row g-2">
+          <div class="col-6"><label class="form-label">Abtastrate</label><select class="form-select" name="sample_rate"><option>44100</option><option>48000</option><option>96000</option></select></div>
+          <div class="col-6"><label class="form-label">Blockgröße</label><select class="form-select" name="blocksize"><option>256</option><option>512</option><option>1024</option><option>2048</option><option>4096</option></select></div>
+          <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="parallel_lanes" id="parallel"><label class="form-check-label" for="parallel">Durchsagen parallel zu laufenden Jingles abspielen</label></div>
+            <div class="form-text">Aus: alle Aufträge strikt nacheinander. An (empfohlen): Medien und Sprache haben je eine eigene Warteschlange – eine Durchsage wartet nicht auf das Ende eines Jingles.</div></div>
+          <div class="col-12"><button class="btn btn-console" type="submit">Übernehmen</button></div>
+        </form>
+      </div>
+    </div>
+    <div class="aep-panel">
+      <div class="aep-panel-head"><span>Sprachausgabe (TTS)</span></div>
+      <div class="aep-panel-body">
+        <form id="tts-form" class="row g-2">
+          <div class="col-md-4"><label class="form-label">Engine</label><select class="form-select" name="engine"><option value="auto">automatisch</option><option value="piper">Piper</option><option value="espeak">espeak-ng</option></select></div>
+          <div class="col-md-4"><label class="form-label">Piper-Programm</label><input class="form-control" name="piper_binary"></div>
+          <div class="col-md-4"><label class="form-label">espeak-ng-Programm</label><input class="form-control" name="espeak_binary"></div>
+          <div class="col-12"><div class="small" id="tts-state"></div></div>
+          <div class="col-12"><label class="form-label">Stimme je Sprache <span class="text-dim">(leer = automatisch / vom eventrentmanager)</span></label><div id="voice-map" class="row g-2"></div></div>
+          <div class="col-12"><button class="btn btn-console" type="submit">Speichern</button></div>
+        </form>
+      </div>
+    </div>
+    <div class="aep-panel">
+      <div class="aep-panel-head"><span>Dante / AES67</span></div>
+      <div class="aep-panel-body small">
+        <p>Der Raspberry Pi hat kein eingebautes Dante. Drei praxistaugliche Wege, die AutoEventPlay ohne Codeänderung nutzt – der Dante-Ausgang erscheint jeweils als normales Audiogerät in der Liste oben:</p>
+        <ol class="mb-2">
+          <li><strong>Dante-USB-Adapter (empfohlen):</strong> z. B. Audinate AVIO USB (2×2). Er meldet sich als USB-Soundkarte, im Dante Controller wird er wie jedes Dante-Gerät geroutet. Zuverlässig, offiziell, keine Lizenzfragen.</li>
+          <li><strong>Inferno (Open Source, experimentell):</strong> inoffizielle Dante-Implementierung für Linux als ALSA-Gerät. Ohne Audinate-Hardware, aber nicht offiziell unterstützt – nur für unkritische Einsätze testen.</li>
+          <li><strong>AES67:</strong> Dante-Geräte mit AES67-Modus können AES67-Streams empfangen (z. B. via PipeWire-AES67-Modul auf dem Pi). Erfordert PTP-Takt und Konfiguration im Dante Controller.</li>
+        </ol>
+        <p class="mb-0 text-dim">Audinates Embedded-Plattform (DEP) für ARM-Linux wäre die offizielle Software-Lösung, setzt aber eine Lizenz von Audinate voraus.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  let devices = [], outputs = [];
+  const LANGS = [["de-DE", "Deutsch"], ["en-GB", "Englisch"], ["fr-FR", "Französisch"], ["it-IT", "Italienisch"], ["es-ES", "Spanisch"], ["nl-NL", "Niederländisch"], ["pl-PL", "Polnisch"]];
+
+  function deviceOptions(selected) {
+    const names = ["default"].concat(devices.map((d) => d.name));
+    if (selected && !names.includes(selected)) names.push(selected);
+    return names.map((n) => `<option value="${AEP.esc(n)}" ${n === selected ? "selected" : ""}>${n === "default" ? "Standardgerät" : AEP.esc(n)}${(devices.find((d) => d.name === n) || {}).dante ? " (Dante)" : ""}${n !== "default" && !devices.some((d) => d.name === n) ? " (nicht gefunden)" : ""}</option>`).join("");
+  }
+  function renderOutputs() {
+    document.getElementById("outputs").innerHTML = outputs.map((o, i) => `<tr data-i="${i}">
+      <td><input class="form-control form-control-sm" data-k="name" value="${AEP.esc(o.name)}"></td>
+      <td><select class="form-select form-select-sm" data-k="device">${deviceOptions(o.device)}</select></td>
+      <td><input class="form-control form-control-sm" data-k="channel" type="number" min="1" max="64" value="${o.channel + 1}"></td>
+      <td class="text-end"><button class="btn btn-sm btn-outline-danger" data-del="${i}" title="Entfernen">✕</button></td></tr>`).join("");
+  }
+  function readOutputs() {
+    document.querySelectorAll("#outputs tr").forEach((tr) => {
+      const o = outputs[+tr.dataset.i];
+      o.name = tr.querySelector('[data-k="name"]').value;
+      o.device = tr.querySelector('[data-k="device"]').value;
+      o.channel = Math.max(0, parseInt(tr.querySelector('[data-k="channel"]').value || "1", 10) - 1);
+    });
+  }
+  async function load() {
+    const d = await AEP.api("/api/audio");
+    devices = d.devices;
+    outputs = d.outputs.map((o) => ({ id: o.id, name: o.name, device: o.device, channel: o.channel }));
+    renderOutputs();
+    const open = Object.fromEntries(d.status.devices.map((x) => [x.name, x]));
+    document.getElementById("engine-status").textContent = d.status.message;
+    document.getElementById("devices").innerHTML = devices.length ? devices.map((x) => {
+      const st = open[x.name];
+      return `<tr><td>${AEP.esc(x.name)}${x.dante ? ' <span class="badge text-bg-info">Dante</span>' : ""}</td><td>${x.channels}</td><td class="small text-dim">${AEP.esc(x.hostapi)}</td><td class="small">${st ? (st.open ? '<span class="aep-dot ok"></span> aktiv' + (st.master ? " · Takt" : "") + (st.underruns ? ` · ${st.underruns} Aussetzer` : "") : '<span class="aep-dot err"></span> ' + AEP.esc(st.error || "Fehler")) : '<span class="text-dim">nicht benutzt</span>'}</td></tr>`;
+    }).join("") : '<tr><td colspan="4" class="text-dim">Keine Audiogeräte gefunden (PortAudio/sounddevice nicht verfügbar oder Backend „null“).</td></tr>';
+    const ef = document.getElementById("engine-form");
+    ef.sample_rate.value = String(d.sample_rate); ef.blocksize.value = String(d.blocksize); ef.parallel_lanes.checked = d.parallel_lanes;
+    const tf = document.getElementById("tts-form");
+    tf.engine.value = d.tts.engine; tf.piper_binary.value = d.tts.piper_binary; tf.espeak_binary.value = d.tts.espeak_binary;
+    document.getElementById("tts-state").innerHTML = `Piper: ${d.tts.piper_available ? '<span class="st-done">verfügbar</span>' : '<span class="st-failed">nicht gefunden</span>'} · espeak-ng: ${d.tts.espeak_available ? '<span class="st-done">verfügbar</span>' : '<span class="st-failed">nicht gefunden</span>'} · ffmpeg: ${d.ffmpeg ? '<span class="st-done">verfügbar</span>' : '<span class="st-failed">fehlt</span>'}<br><span class="text-dim">Installierte Piper-Stimmen: ${d.tts.voices.length ? d.tts.voices.map(AEP.esc).join(", ") : "keine (Stimmen nach data/voices/ legen)"}</span>`;
+    const vo = d.tts.voice_overrides || {};
+    document.getElementById("voice-map").innerHTML = LANGS.map(([code, name]) => `<div class="col-md-6"><div class="input-group input-group-sm"><span class="input-group-text" style="width:120px">${name}</span><select class="form-select" data-lang="${code}"><option value="">automatisch</option>${d.tts.voices.map((v) => `<option ${vo[code] === v ? "selected" : ""}>${AEP.esc(v)}</option>`).join("")}</select></div></div>`).join("");
+  }
+  document.getElementById("outputs").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-del]");
+    if (!b) return;
+    readOutputs(); outputs.splice(+b.dataset.del, 1); renderOutputs();
+  });
+  document.getElementById("btn-add").addEventListener("click", () => {
+    readOutputs();
+    const last = outputs[outputs.length - 1];
+    outputs.push({ id: null, name: "Out " + (outputs.length + 1), device: last ? last.device : "default", channel: last ? last.channel + 1 : 0 });
+    renderOutputs();
+  });
+  document.getElementById("btn-add-device").addEventListener("click", () => {
+    if (!devices.length) { AEP.toast("Keine Geräte erkannt", "err"); return; }
+    const name = prompt("Gerät (Name):\n" + devices.map((d, i) => (i + 1) + ") " + d.name + " – " + d.channels + " Kanäle").join("\n"), "1");
+    const dev = devices[parseInt(name, 10) - 1] || devices.find((d) => d.name === name);
+    if (!dev) return;
+    readOutputs();
+    for (let ch = 0; ch < Math.min(dev.channels, 16); ch++) {
+      if (!outputs.some((o) => o.device === dev.name && o.channel === ch)) outputs.push({ id: null, name: dev.name.split(/[ :(]/)[0].slice(0, 10) + " " + (ch + 1), device: dev.name, channel: ch });
+    }
+    renderOutputs();
+  });
+  document.getElementById("btn-save-outputs").addEventListener("click", async () => {
+    readOutputs();
+    await AEP.run(() => AEP.api("/api/outputs", { outputs }), "Ausgänge gespeichert");
+    load();
+  });
+  document.getElementById("engine-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await AEP.run(() => AEP.api("/api/audio/settings", { sample_rate: +e.target.sample_rate.value, blocksize: +e.target.blocksize.value, parallel_lanes: e.target.parallel_lanes.checked }), "Übernommen");
+    load();
+  });
+  document.getElementById("tts-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const voice_overrides = {};
+    document.querySelectorAll("[data-lang]").forEach((s) => { if (s.value) voice_overrides[s.dataset.lang] = s.value; });
+    await AEP.run(() => AEP.api("/api/audio/tts", { engine: e.target.engine.value, piper_binary: e.target.piper_binary.value, espeak_binary: e.target.espeak_binary.value, voice_overrides }), "Gespeichert");
+  });
+  load();
+})();
+</script>
+{% endblock %}

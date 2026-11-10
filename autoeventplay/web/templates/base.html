@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="de" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }} · AutoEventPlay</title>
+  {% if vendor_ok %}
+  <link rel="stylesheet" href="/static/vendor/bootstrap/bootstrap.min.css">
+  {% else %}
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  {% endif %}
+  <link rel="stylesheet" href="/static/css/app.css?v={{ version }}">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%2322262c'/%3E%3Crect x='3' y='3' width='2' height='10' fill='%232fb4e8'/%3E%3Crect x='7' y='6' width='2' height='7' fill='%23b07cf7'/%3E%3Crect x='11' y='4' width='2' height='9' fill='%23f5a524'/%3E%3C/svg%3E">
+</head>
+<body data-authed="{{ '1' if user else '0' }}">
+{% if user %}
+  {% if not vendor_ok %}<div class="vendor-warning">Bootstrap ist nicht lokal installiert und wird aus dem Internet geladen – auf dem Pi bitte <code>deploy/install.sh</code> bzw. <code>scripts/fetch-vendor.sh</code> ausführen.</div>{% endif %}
+  <header class="aep-topbar">
+    <div class="container-fluid py-2 d-flex flex-wrap align-items-center gap-3">
+      <a class="aep-brand" href="/"><span class="logo"></span>AutoEventPlay</a>
+      <nav class="aep-nav nav flex-wrap">
+        <a class="nav-link {{ 'active' if active == 'mixer' }}" href="/">Mischpult</a>
+        <a class="nav-link {{ 'active' if active == 'routing' }}" href="/routing">Routing</a>
+        <a class="nav-link {{ 'active' if active == 'cues' }}" href="/cues">Cues</a>
+        <a class="nav-link {{ 'active' if active == 'consoles' }}" href="/pulte">Pulte</a>
+        <a class="nav-link {{ 'active' if active == 'instance' }}" href="/instanz">Instanz</a>
+        <a class="nav-link {{ 'active' if active == 'audio' }}" href="/audio">Audio</a>
+        <a class="nav-link {{ 'active' if active == 'logs' }}" href="/logs">Logs</a>
+        <a class="nav-link {{ 'active' if active == 'system' }}" href="/system">System</a>
+      </nav>
+      <div class="aep-status ms-auto">
+        <span class="aep-pill" id="st-play"><span class="aep-dot"></span><span class="txt">…</span></span>
+        <span class="aep-pill" id="st-erm"><span class="aep-dot"></span><span class="txt">…</span></span>
+        <span class="aep-pill" id="st-audio"><span class="aep-dot"></span><span class="txt">…</span></span>
+        <span class="aep-pill" id="st-mixers"><span class="aep-dot"></span><span class="txt">…</span></span>
+        <button class="btn btn-sm btn-stop px-3" id="btn-stop" title="Alle laufenden Wiedergaben sofort stoppen">STOP</button>
+        <a href="#" id="btn-logout" class="btn btn-sm btn-console" title="Abmelden ({{ user }})">⏻</a>
+      </div>
+    </div>
+  </header>
+{% endif %}
+<main class="{{ 'container-fluid py-3' if user else '' }}">
+{% block content %}{% endblock %}
+</main>
+<script src="/static/js/app.js?v={{ version }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

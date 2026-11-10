@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-xl-5">
+    <div class="aep-panel">
+      <div class="aep-panel-head"><span>eventrentmanager-Instanz</span><span id="conn" class="aep-pill"><span class="aep-dot"></span><span class="txt">…</span></span></div>
+      <div class="aep-panel-body">
+        <form id="settings-form">
+          <div class="mb-2"><label class="form-label">URL der Instanz</label><input class="form-control" name="base_url" placeholder="https://verleih.example.de" inputmode="url"></div>
+          <div class="mb-2"><label class="form-label">Gerätename (erscheint im eventrentmanager)</label><input class="form-control" name="device_name" placeholder="AutoEventPlay FOH"></div>
+          <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="verify_tls" id="verify_tls" checked><label class="form-check-label" for="verify_tls">TLS-Zertifikat prüfen</label></div>
+          <button class="btn btn-console" type="submit">Speichern</button>
+        </form>
+        <hr>
+        <div class="aep-section-title">Mit Veranstaltung koppeln</div>
+        <p class="form-text mt-0">Im eventrentmanager in der Veranstaltung unter <em>Audio &amp; Durchsagen › Abspielgerät per Code koppeln</em> einen Code erzeugen und hier eingeben. Ein bereits gekoppeltes Gerät wird dabei der neuen Veranstaltung zugeordnet.</p>
+        <form id="pair-form" class="d-flex gap-2 align-items-stretch">
+          <input class="form-control code-input" name="code" maxlength="7" placeholder="000000" inputmode="numeric" autocomplete="one-time-code" aria-label="6-stelliger Code">
+          <button class="btn btn-primary px-4" type="submit">Koppeln</button>
+        </form>
+        <details class="mt-3">
+          <summary class="small text-dim">Alternativ: Geräte-Token manuell eintragen</summary>
+          <form id="token-form" class="d-flex gap-2 mt-2">
+            <input class="form-control mono small" name="token" placeholder="mvp_…" autocomplete="off">
+            <button class="btn btn-console" type="submit">Übernehmen</button>
+          </form>
+          <div class="form-text">Token aus <em>Einstellungen › Veranstaltungs-Audio</em> im eventrentmanager.</div>
+        </details>
+        <hr>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-console" id="btn-sync">Jetzt synchronisieren</button>
+          <button class="btn btn-sm btn-outline-danger ms-auto" id="btn-unpair">Kopplung aufheben</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-7 d-flex flex-column gap-3">
+    <div class="aep-panel">
+      <div class="aep-panel-head"><span>Status</span></div>
+      <div class="aep-panel-body">
+        <dl class="row mb-0 small" id="status"></dl>
+      </div>
+    </div>
+    <div class="aep-panel">
+      <div class="aep-panel-head"><span>Lokal vorgehaltene Dateien</span><span class="text-dim" id="files-count"></span></div>
+      <div class="aep-panel-body">
+        <table class="table table-sm mb-0"><thead><tr><th>Art</th><th>Titel</th><th>Datei</th><th class="text-end">Größe</th><th></th></tr></thead><tbody id="files"></tbody></table>
+      </div>
+    </div>
+    <div class="aep-panel">
+      <div class="aep-panel-head"><span>Geplante Einspieler &amp; Programm</span></div>
+      <div class="aep-panel-body"><ul class="list-compact" id="scheduled"></ul></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const sf = document.getElementById("settings-form");
+  let filled = false;
+  async function load() {
+    const d = await AEP.api("/api/erm");
+    if (!filled) {
+      sf.base_url.value = d.base_url || "";
+      sf.device_name.value = d.device_name || "";
+      sf.verify_tls.checked = d.verify_tls;
+      filled = true;
+    }
+    const st = d.status;
+    const pill = document.getElementById("conn");
+    pill.querySelector(".aep-dot").className = "aep-dot " + (st.online ? "ok" : (d.paired ? "err" : "warn"));
+    pill.querySelector(".txt").textContent = st.online ? "online" : (d.paired ? "offline" : "nicht gekoppelt");
+    const r = d.rental;
+    const rows = [
+      ["Verbindung", AEP.esc(st.message)],
+      ["Gerät", d.player ? AEP.esc(d.player.name) + ' <span class="text-dim mono">' + AEP.esc(d.token_hint || "") + "</span>" : "—"],
+      ["Veranstaltung", r ? `<strong>${AEP.esc(r.name)}</strong>${r.location ? " · " + AEP.esc(r.location) : ""}<br><span class="text-dim">${AEP.esc(r.start_date)} – ${AEP.esc(r.end_date)}</span>` : '<span class="text-dim">keine laufende Veranstaltung zugeordnet</span>'],
+      ["Sprachausgabe", d.tts ? `${AEP.esc(d.tts.language)} · Stimme ${AEP.esc(d.tts.voice || "Standard")} · Tempo ${d.tts.rate}` : "—"],
+      ["Letzter Kontakt", st.last_ok ? AEP.fmtTime(st.last_ok) : "—"],
+      ["Letzter Fehler", st.last_error ? '<span class="text-warning">' + AEP.esc(st.last_error) + "</span>" : "—"],
+    ];
+    document.getElementById("status").innerHTML = rows.map((x) => `<dt class="col-sm-4 text-dim fw-normal">${x[0]}</dt><dd class="col-sm-8">${x[1]}</dd>`).join("");
+    document.getElementById("files-count").textContent = d.files.length + " Datei(en)";
+    document.getElementById("files").innerHTML = d.files.length ? d.files.map((f) => `<tr><td><span class="badge badge-kind kind-${f.kind}">${AEP.kindLabel[f.kind] || f.kind}</span></td><td>${AEP.esc(f.title)}</td><td class="small text-dim">${AEP.esc(f.filename || "")}</td><td class="text-end small">${((f.size || 0) / 1048576).toFixed(1)} MB</td><td class="text-end"><button class="btn btn-sm btn-console" data-play="${AEP.esc(f.id)}" data-kind="${AEP.esc(f.kind)}" title="Testweise abspielen">▶</button></td></tr>`).join("") : '<tr><td colspan="5" class="text-dim">Keine Dateien – sobald eine Veranstaltung aktiv ist, werden Jingles und Audio-Dateien automatisch geladen.</td></tr>';
+    const sched = (d.scheduled || []).map((x) => ({ t: x.play_at, label: "Einspieler" + (x.note ? ": " + x.note : ""), kind: "audio" }))
+      .concat((d.minute_programs || []).map((x) => ({ t: x.start_at, label: "Programm: " + x.name, kind: "any" })))
+      .sort((a, b) => (a.t || "").localeCompare(b.t || ""));
+    document.getElementById("scheduled").innerHTML = sched.length ? sched.map((x) => `<li><span class="mono small text-dim">${AEP.esc(new Date(x.t).toLocaleString("de-DE", { weekday: "short", hour: "2-digit", minute: "2-digit" }))}</span><span class="badge badge-kind kind-${x.kind}">${x.kind === "audio" ? "geplant" : "Programm"}</span><span>${AEP.esc(x.label)}</span></li>`).join("") : '<li class="text-dim">nichts geplant</li>';
+  }
+  sf.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await AEP.run(() => AEP.api("/api/erm/settings", { base_url: sf.base_url.value, device_name: sf.device_name.value, verify_tls: sf.verify_tls.checked }), "Gespeichert");
+    load();
+  });
+  document.getElementById("pair-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const r = await AEP.run(() => AEP.api("/api/erm/pair", { base_url: sf.base_url.value, code: e.target.code.value, device_name: sf.device_name.value }),
+      (r) => "Gekoppelt" + (r.rental ? " mit „" + r.rental.name + "“" : ""));
+    e.target.code.value = "";
+    setTimeout(load, 800);
+  });
+  document.getElementById("token-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await AEP.run(() => AEP.api("/api/erm/settings", { base_url: sf.base_url.value, device_name: sf.device_name.value, verify_tls: sf.verify_tls.checked, token: e.target.token.value }), "Token übernommen");
+    e.target.token.value = "";
+    setTimeout(load, 800);
+  });
+  document.getElementById("btn-sync").addEventListener("click", () => AEP.run(() => AEP.api("/api/erm/sync", {}), "Synchronisation angestoßen").then(() => setTimeout(load, 1500)));
+  document.getElementById("btn-unpair").addEventListener("click", async () => {
+    if (!confirm("Kopplung wirklich aufheben? Das Gerät holt dann keine Aufträge mehr ab.")) return;
+    await AEP.run(() => AEP.api("/api/erm/unpair", {}), "Kopplung aufgehoben");
+    load();
+  });
+  document.getElementById("files").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-play]");
+    if (b) AEP.run(() => AEP.api("/api/playback/test", { kind: b.dataset.kind === "jingle" ? "jingle" : "audio", file_id: b.dataset.play }), "Eingereiht");
+  });
+  AEP.on("changed", () => setTimeout(load, 200));
+  load();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="login-wrap">
+  <div class="login-card aep-panel">
+    <div class="aep-panel-body p-4">
+      <div class="aep-brand mb-1 fs-5"><span class="logo"></span>AutoEventPlay</div>
+      <p class="text-dim mb-4">Willkommen! Lege zuerst das Administrator-Konto für die Weboberfläche an.</p>
+      <form id="setup-form">
+        <div class="mb-3"><label class="form-label" for="u">Benutzername</label><input class="form-control" id="u" name="username" value="admin" autocomplete="username" required></div>
+        <div class="mb-3"><label class="form-label" for="pw">Passwort <span class="text-dim">(mind. 8 Zeichen)</span></label><input class="form-control" id="pw" name="password" type="password" autocomplete="new-password" minlength="8" required autofocus></div>
+        <div class="mb-3"><label class="form-label" for="pw2">Passwort wiederholen</label><input class="form-control" id="pw2" name="password2" type="password" autocomplete="new-password" minlength="8" required></div>
+        <div class="text-danger small mb-2" id="err" role="alert"></div>
+        <button class="btn btn-primary w-100" type="submit">Konto anlegen</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById("setup-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const err = document.getElementById("err");
+  err.textContent = "";
+  if (e.target.password.value !== e.target.password2.value) { err.textContent = "Die Passwörter stimmen nicht überein."; return; }
+  try {
+    await AEP.api("/api/auth/setup", { username: e.target.username.value, password: e.target.password.value });
+    location.href = "/instanz";
+  } catch (ex) { err.textContent = ex.message; }
+});
+</script>
+{% endblock %}
