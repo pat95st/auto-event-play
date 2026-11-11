@@ -4,13 +4,15 @@
   <div class="login-card aep-panel">
     <div class="aep-panel-body p-4">
       <div class="aep-brand mb-1 fs-5"><span class="logo"></span>AutoEventPlay</div>
-      <p class="text-dim mb-4">Willkommen! Lege zuerst das Administrator-Konto für die Weboberfläche an.</p>
+      <p class="text-dim mb-4">{{ _("Welcome! First create the administrator account for the web interface.") }}</p>
       <form id="setup-form">
-        <div class="mb-3"><label class="form-label" for="u">Benutzername</label><input class="form-control" id="u" name="username" value="admin" autocomplete="username" required></div>
-        <div class="mb-3"><label class="form-label" for="pw">Passwort <span class="text-dim">(mind. 8 Zeichen)</span></label><input class="form-control" id="pw" name="password" type="password" autocomplete="new-password" minlength="8" required autofocus></div>
-        <div class="mb-3"><label class="form-label" for="pw2">Passwort wiederholen</label><input class="form-control" id="pw2" name="password2" type="password" autocomplete="new-password" minlength="8" required></div>
+        <div class="mb-3"><label class="form-label" for="u">{{ _("User name") }}</label><input class="form-control" id="u" name="username" value="admin" autocomplete="username" required></div>
+        <div class="mb-3"><label class="form-label" for="pw">{{ _("Password") }} <span class="text-dim">({{ _("at least 8 characters") }})</span></label><input class="form-control" id="pw" name="password" type="password" autocomplete="new-password" minlength="8" required autofocus></div>
+        <div class="mb-3"><label class="form-label" for="pw2">{{ _("Repeat password") }}</label><input class="form-control" id="pw2" name="password2" type="password" autocomplete="new-password" minlength="8" required></div>
+        <div class="mb-3"><label class="form-label" for="lang">{{ _("Language") }}</label>
+          <select class="form-select" id="lang">{% for code, name in languages.items() %}<option value="{{ code }}" {{ 'selected' if code == lang }}>{{ name }}</option>{% endfor %}</select></div>
         <div class="text-danger small mb-2" id="err" role="alert"></div>
-        <button class="btn btn-primary w-100" type="submit">Konto anlegen</button>
+        <button class="btn btn-primary w-100" type="submit">{{ _("Create account") }}</button>
       </form>
     </div>
   </div>
@@ -22,10 +24,11 @@ document.getElementById("setup-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const err = document.getElementById("err");
   err.textContent = "";
-  if (e.target.password.value !== e.target.password2.value) { err.textContent = "Die Passwörter stimmen nicht überein."; return; }
+  if (e.target.password.value !== e.target.password2.value) { err.textContent = AEP.t("The passwords do not match."); return; }
   try {
     await AEP.api("/api/auth/setup", { username: e.target.username.value, password: e.target.password.value });
-    location.href = "/instanz";
+    await AEP.api("/api/ui/language", { language: document.getElementById("lang").value });
+    location.href = "/instance";
   } catch (ex) { err.textContent = ex.message; }
 });
 </script>

@@ -10,6 +10,7 @@ from typing import Any
 
 from ...domain.model import MixerConfig, Target
 from .base import MixerDriver, MixerError, driver_class
+from ...i18n import Msg, t, text_of
 
 log = logging.getLogger("aep.mixer")
 
@@ -17,11 +18,11 @@ log = logging.getLogger("aep.mixer")
 @dataclass
 class MixerStatus:
     ok: bool | None = None
-    message: str = "noch nicht verwendet"
+    message: str = Msg("not used yet")
     last_change: float = field(default_factory=time.time)
 
     def to_dict(self) -> dict[str, Any]:
-        return {"ok": self.ok, "message": self.message, "last_change": self.last_change}
+        return {"ok": self.ok, "message": t(self.message), "last_change": self.last_change}
 
 
 class MixerManager:
@@ -59,9 +60,9 @@ class MixerManager:
     def driver(self, mixer_id: str) -> MixerDriver:
         cfg = self._configs.get(mixer_id)
         if cfg is None:
-            raise MixerError("Mischpult nicht (mehr) konfiguriert")
+            raise MixerError("Console is not configured (any more)")
         if not cfg.enabled:
-            raise MixerError(f"Mischpult „{cfg.name}“ ist deaktiviert")
+            raise MixerError(Msg("Console \"{name}\" is disabled", name=cfg.name))
         drv = self._drivers.get(mixer_id)
         if drv is None:
             drv = driver_class(cfg.type)(cfg)
@@ -83,9 +84,9 @@ class MixerManager:
                 self._set_status(mixer_id, True, "OK")
                 return result
             except asyncio.TimeoutError:
-                msg = f"{label}: Zeitüberschreitung"
+                msg = Msg("{action}: timeout", action=label)
             except (MixerError, ConnectionError, OSError) as exc:
-                msg = f"{label}: {exc}"
+                msg = Msg("{action}: {error}", action=label, error=text_of(exc))
             self._set_status(mixer_id, False, msg)
             await self._close(mixer_id)  # reconnect next time
             raise MixerError(msg)
@@ -94,7 +95,7 @@ class MixerManager:
         await self._run(mixer_id, "Mute", lambda d: d.set_mute(target, muted))
 
     async def set_level(self, mixer_id: str, target: Target, db: float | None) -> None:
-        await self._run(mixer_id, "Pegel", lambda d: d.set_level(target, db))
+        await self._run(mixer_id, "Level", lambda d: d.set_level(target, db))
 
     async def _query(self, mixer_id: str, label: str, factory):  # noqa: ANN001, ANN202
         try:
@@ -103,14 +104,14 @@ class MixerManager:
             return None
         drv = self._drivers.get(mixer_id)
         if value is None and drv is not None and drv.can_query:
-            self._set_status(mixer_id, False, f"{label}: keine Antwort vom Pult")
+            self._set_status(mixer_id, False, Msg("{action}: no reply from the console", action=label))
         return value
 
     async def get_mute(self, mixer_id: str, target: Target) -> bool | None:
-        return await self._query(mixer_id, "Mute lesen", lambda d: d.get_mute(target))
+        return await self._query(mixer_id, "Read mute", lambda d: d.get_mute(target))
 
     async def get_level(self, mixer_id: str, target: Target) -> float | None:
-        return await self._query(mixer_id, "Pegel lesen", lambda d: d.get_level(target))
+        return await self._query(mixer_id, "Read level", lambda d: d.get_level(target))
 
     async def test(self, mixer_id: str) -> str:
         return await self._run(mixer_id, "Test", lambda d: d.test())

@@ -3,17 +3,17 @@
 <div class="row g-3">
   <div class="col-xl-8">
     <div class="aep-panel">
-      <div class="aep-panel-head"><span>Routing-Matrix</span><span class="text-dim" style="text-transform:none;letter-spacing:0;font-weight:400">Klick auf einen Kreuzpunkt schaltet die Quelle auf den Ausgang</span></div>
+      <div class="aep-panel-head"><span>{{ _("Routing matrix") }}</span><span class="text-dim" style="text-transform:none;letter-spacing:0;font-weight:400">{{ _("Click a crosspoint to route the source to the output") }}</span></div>
       <div class="aep-panel-body overflow-auto"><table class="matrix" id="matrix"></table></div>
     </div>
   </div>
   <div class="col-xl-4">
     <div class="aep-panel">
-      <div class="aep-panel-head"><span>Hinweise</span></div>
+      <div class="aep-panel-head"><span>{{ _("Notes") }}</span></div>
       <div class="aep-panel-body small">
-        <p><strong>Quellen:</strong> <span class="text-dim">Medien L/R</span> sind Jingles und Audio-Dateien (stereo, getrennt routbar), <span class="text-dim">TTS</span> ist die automatische Sprachausgabe, <span class="text-dim">Aufnahme</span> die im eventrentmanager aufgenommenen Durchsagen. Der Gong läuft jeweils über die Quelle der Durchsage.</p>
-        <p><strong>Beispiel:</strong> Medien L + R → Out 1 ergibt eine Mono-Summe der Musik, TTS + Aufnahme → Out 2 eine Summe der Sprache – so lassen sich Musik und Sprache am Pult getrennt regeln.</p>
-        <p class="mb-0">Mehrere Quellen auf einem Ausgang werden summiert. Pegel und Mutes stellst du auf der Seite <a href="/">Mischpult</a> ein, die Ausgänge selbst unter <a href="/audio">Audio</a>.</p>
+        <p><strong>{{ _("Sources:") }}</strong> {{ _("Media L/R are jingles and audio files (stereo, separately routable), TTS is the automatic speech output, Recording the announcements recorded in eventrentmanager. The gong always plays through the source of its announcement.") }}</p>
+        <p><strong>{{ _("Example:") }}</strong> {{ _("Media L + R → Out 1 gives a mono sum of the music, TTS + Recording → Out 2 a sum of the speech – so music and speech can be controlled separately on the console.") }}</p>
+        <p class="mb-0">{{ _("Several sources on one output are summed.") }} {{ _("Set levels and mutes on the mixer page, the outputs themselves under audio.") }} <a href="/">{{ _("Mixer") }}</a> · <a href="/audio">{{ _("Audio") }}</a></p>
       </div>
     </div>
   </div>

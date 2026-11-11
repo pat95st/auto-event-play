@@ -3,9 +3,11 @@
 (function () {
   "use strict";
   const AEP = window.AEP;
+  const T = AEP.t;
   const FS = 48000, FMIN = 20, FMAX = 20000, GMAX = 18;
   const BUTTER_Q = { 12: [0.70710678], 18: [1.0], 24: [0.5411961, 1.30656296] };
-  const TYPE_LABEL = { peak: "Glocke", low_shelf: "Low-Shelf", high_shelf: "High-Shelf" };
+  const TYPE_LABEL = { peak: T("Bell"), low_shelf: T("Low shelf"), high_shelf: T("High shelf") };
+  const OCT = T("oct");
   const BAND_COLORS = ["#ff6b6b", "#ffc53d", "#36cf6f", "#3fa9f5"];
 
   function biquad(kind, f, q, gain) {
@@ -83,13 +85,13 @@
             <span>EQ · <span class="text-white">${AEP.esc(opts.name)}</span></span>
             <div class="d-flex gap-2 align-items-center" style="text-transform:none;letter-spacing:0">
               <button class="strip-btn eq-in" style="width:auto;padding:4px 12px">EQ IN</button>
-              <button class="btn btn-sm btn-console" data-act="flat" title="Alle Bänder auf 0 dB, Filter aus">Flat</button>
-              <button class="btn-close btn-close-white btn-sm" data-act="close" aria-label="Schließen"></button>
+              <button class="btn btn-sm btn-console" data-act="flat" title="${AEP.esc(T("All bands to 0 dB, filters off"))}">${AEP.esc(T("Flat"))}</button>
+              <button class="btn-close btn-close-white btn-sm" data-act="close" aria-label="${AEP.esc(T("Close"))}"></button>
             </div>
           </div>
           <div class="aep-panel-body">
             <div class="eq-graph"><canvas></canvas></div>
-            <div class="eq-hint text-dim small my-2">Punkte ziehen: Frequenz/Gain · Mausrad auf einem Punkt: Güte (Q) bzw. Flankensteilheit · Doppelklick: Band an/aus</div>
+            <div class="eq-hint text-dim small my-2">${AEP.esc(T("Drag points: frequency/gain · mouse wheel on a point: Q or slope · double-click: band on/off"))}</div>
             <div class="eq-controls"></div>
           </div>
         </div>`;
@@ -150,18 +152,18 @@
       const cut = (key, label) => `
         <div class="eq-col" data-col="${key}">
           <div class="eq-col-head"><button class="strip-btn eq-on" data-k="on">${label}</button></div>
-          <label class="form-label">Frequenz Hz</label><input class="form-control form-control-sm" data-k="freq" type="number" min="20" max="20000" step="1">
-          <label class="form-label">Steilheit</label><select class="form-select form-select-sm" data-k="slope"><option value="12">12 dB/Okt</option><option value="18">18 dB/Okt</option><option value="24">24 dB/Okt</option></select>
+          <label class="form-label">${AEP.esc(T("Frequency Hz"))}</label><input class="form-control form-control-sm" data-k="freq" type="number" min="20" max="20000" step="1">
+          <label class="form-label">${AEP.esc(T("Slope"))}</label><select class="form-select form-select-sm" data-k="slope"><option value="12">12 dB/${OCT}</option><option value="18">18 dB/${OCT}</option><option value="24">24 dB/${OCT}</option></select>
         </div>`;
       const band = (i) => `
         <div class="eq-col" data-col="${i}" style="--band-color:${BAND_COLORS[i]}">
-          <div class="eq-col-head"><button class="strip-btn eq-on" data-k="on">Band ${i + 1}</button></div>
-          <label class="form-label">Typ</label><select class="form-select form-select-sm" data-k="type">${Object.entries(TYPE_LABEL).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
-          <label class="form-label">Frequenz Hz</label><input class="form-control form-control-sm" data-k="freq" type="number" min="20" max="20000" step="1">
+          <div class="eq-col-head"><button class="strip-btn eq-on" data-k="on">${AEP.esc(T("Band"))} ${i + 1}</button></div>
+          <label class="form-label">${AEP.esc(T("Type"))}</label><select class="form-select form-select-sm" data-k="type">${Object.entries(TYPE_LABEL).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
+          <label class="form-label">${AEP.esc(T("Frequency Hz"))}</label><input class="form-control form-control-sm" data-k="freq" type="number" min="20" max="20000" step="1">
           <label class="form-label">Gain dB</label><input class="form-control form-control-sm" data-k="gain" type="number" min="-18" max="18" step="0.5">
           <label class="form-label">Q</label><input class="form-control form-control-sm" data-k="q" type="number" min="0.1" max="16" step="0.1">
         </div>`;
-      c.innerHTML = cut("low_cut", "Low-Cut") + [0, 1, 2, 3].map(band).join("") + cut("high_cut", "High-Cut");
+      c.innerHTML = cut("low_cut", T("Low cut")) + [0, 1, 2, 3].map(band).join("") + cut("high_cut", T("High cut"));
       c.querySelectorAll(".eq-col").forEach((col) => {
         const key = col.dataset.col;
         const target = () => (key === "low_cut" || key === "high_cut") ? this.eq[key] : this.eq.bands[+key];
@@ -253,7 +255,7 @@
       });
       if (this.drag) {
         const t = this.target(this.drag.id);
-        const txt = typeof this.drag.id === "number" ? `${fmtF(t.freq)} Hz  ${t.gain > 0 ? "+" : ""}${t.gain.toFixed(1)} dB  Q ${t.q.toFixed(2)}` : `${fmtF(t.freq)} Hz  ${t.slope} dB/Okt`;
+        const txt = typeof this.drag.id === "number" ? `${fmtF(t.freq)} Hz  ${t.gain > 0 ? "+" : ""}${t.gain.toFixed(1)} dB  Q ${t.q.toFixed(2)}` : `${fmtF(t.freq)} Hz  ${t.slope} dB/${OCT}`;
         g.fillStyle = "#e8edf2"; g.font = "12px DejaVu Sans Mono, monospace"; g.fillText(txt, W - g.measureText(txt).width - 8, 16);
       }
     }

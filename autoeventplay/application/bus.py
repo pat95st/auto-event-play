@@ -34,7 +34,7 @@ class DomainError(Exception):
 
 
 class NotFound(DomainError):
-    def __init__(self, message: str = "Nicht gefunden."):
+    def __init__(self, message: str = "Not found."):
         super().__init__(message, 404)
 
 

@@ -194,3 +194,55 @@ tr[data-bus="recording"] { --strip-color: var(--aep-recording); }
 .eq-col-head .strip-btn.on { background: linear-gradient(#5fd4ff, #1a8fc0); color: #04212e; }
 .strip-btn.eq-in.on { background: linear-gradient(#5fd4ff, #1a8fc0); color: #04212e; box-shadow: 0 0 10px rgba(47,180,232,.55); }
 @media (max-width: 900px) { .eq-controls { grid-template-columns: repeat(3, 1fr); } }
+
+/* ------------------------------------------------------------------ compressor */
+.strip-btn.dyn.on { background: linear-gradient(#ffcf6b, #d48a06); color: #1a1100; box-shadow: 0 0 10px rgba(245,165,36,.6); }
+.strip-btn.dyn-in.on { background: linear-gradient(#ffcf6b, #d48a06); color: #1a1100; box-shadow: 0 0 10px rgba(245,165,36,.6); }
+.gr-meter { width: 5px; height: 100%; background: #050607; border: 1px solid #000; border-radius: 2px; position: relative; overflow: hidden; }
+.gr-meter .gr-fill { position: absolute; top: 0; left: 0; right: 0; height: 0; background: linear-gradient(#f5a524, #c46a00); transition: height .08s linear; }
+.dyn-panel { width: min(900px, 100%); }
+.dyn-layout { display: grid; grid-template-columns: minmax(240px, 340px) 42px 1fr; gap: 12px; align-items: stretch; }
+.dyn-graph { aspect-ratio: 1 / 1; background: #050607; border: 1px solid #000; border-radius: 8px; box-shadow: inset 0 0 12px #000; }
+.dyn-graph canvas { width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
+.dyn-panel.eq-bypassed .dyn-graph { opacity: .6; }
+.dyn-gr { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.dyn-gr-bar { flex: 1; width: 16px; background: #050607; border: 1px solid #000; border-radius: 3px; position: relative; overflow: hidden; }
+.dyn-gr-fill { position: absolute; top: 0; left: 0; right: 0; height: 0; background: linear-gradient(#f5a524, #c46a00); }
+.dyn-gr-label { font-size: .65rem; color: var(--aep-dim); font-weight: 700; letter-spacing: .1em; }
+.dyn-gr-val { font-size: .7rem; color: #f5c56b; }
+.dyn-controls { display: grid; grid-template-columns: repeat(2, minmax(140px, 1fr)); gap: 8px 14px; align-content: start; }
+.dyn-field { background: var(--aep-panel-2); border: 1px solid #000; border-radius: 8px; padding: 6px 8px; border-top: 3px solid #f5a524; }
+.dyn-field .form-label { font-size: .7rem; margin-bottom: .2rem; }
+.dyn-field .form-range { margin-top: .3rem; }
+.aep-lang { padding-top: 2px; padding-bottom: 2px; font-size: .75rem; background-color: var(--aep-panel-2, #22262c); }
+@media (max-width: 760px) { .dyn-layout { grid-template-columns: 1fr 42px; } .dyn-controls { grid-column: 1 / -1; } }
+
+/* ------------------------------------------------------------------ trim + processing order */
+.strip-top { height: 44px; display: flex; align-items: center; }
+.strip-top > .strip-btn { align-self: center; }
+.trim { display: flex; align-items: center; gap: 5px; width: 100%; }
+.trim-knob {
+  --arc-from: 0deg; --arc-len: 0deg;
+  width: 38px; height: 38px; flex: 0 0 38px; border-radius: 50%; position: relative; cursor: ns-resize; touch-action: none;
+  /* bipolar arc from 12 o'clock (0 dB) towards the current value, on a 270° track */
+  background:
+    radial-gradient(circle at 50% 38%, #4a525c 0, #2a2f36 55%, #1a1d22 100%) content-box,
+    conic-gradient(from var(--arc-from), #e8c45a 0 var(--arc-len), transparent var(--arc-len)),
+    conic-gradient(from 225deg, #0a0b0d 0 270deg, transparent 270deg);
+  padding: 3px; border: 1px solid #000; box-shadow: 0 2px 4px rgba(0,0,0,.6);
+}
+.trim-knob:focus-visible { outline: 2px solid var(--aep-accent); }
+.trim-pointer { position: absolute; left: 50%; top: 50%; width: 2px; height: 0; margin-left: -1px; transform-origin: 50% 0; }
+.trim-pointer::before { content: ""; position: absolute; left: 0; width: 2px; height: 11px; top: -16px; background: #fff; border-radius: 1px; }
+.trim-info { display: flex; flex-direction: column; line-height: 1.05; min-width: 0; }
+.trim-label { font-size: .58rem; font-weight: 800; letter-spacing: .1em; color: var(--aep-dim); }
+.trim-val { font-size: .7rem; color: #e8c45a; }
+.trim.is-zero .trim-val { color: #aab2bd; }
+.proc-chain { display: flex; flex-direction: column; gap: 2px; }
+.proc-chain.dyn-first { flex-direction: column-reverse; }
+.proc-swap {
+  align-self: center; border: 0; background: transparent; color: var(--aep-dim); font-size: .7rem; line-height: 1; padding: 0 6px; height: 12px;
+  cursor: pointer; border-radius: 3px;
+}
+.proc-swap:hover { color: #fff; background: #2c3138; }
+.proc-chain.dyn-first .proc-swap { color: #e8c45a; }

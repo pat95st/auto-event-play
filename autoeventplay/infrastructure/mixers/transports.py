@@ -12,6 +12,7 @@ import os
 import struct
 from typing import Any, Callable
 from urllib.parse import urlparse
+from ...i18n import Msg
 
 log = logging.getLogger("aep.mixer.net")
 
@@ -116,7 +117,7 @@ class OscUdpClient:
         try:
             transport, _ = await loop.create_datagram_endpoint(lambda: _OscProtocol(self), remote_addr=(self.host, self.port))
         except OSError as exc:
-            raise ConnectionError(f"{self.host}:{self.port} nicht erreichbar ({exc})") from exc
+            raise ConnectionError(Msg("{host}:{port} not reachable ({error})", host=self.host, port=self.port, error=str(exc))) from exc
         self._transport = transport  # type: ignore[assignment]
 
     def close(self) -> None:
@@ -177,7 +178,7 @@ class TcpClient:
         try:
             self._reader, self._writer = await asyncio.wait_for(asyncio.open_connection(self.host, self.port), timeout)
         except (OSError, asyncio.TimeoutError) as exc:
-            raise ConnectionError(f"{self.host}:{self.port} nicht erreichbar ({exc or 'Timeout'})") from exc
+            raise ConnectionError(Msg("{host}:{port} not reachable ({error})", host=self.host, port=self.port, error=str(exc) or "timeout")) from exc
         self._read_task = asyncio.create_task(self._read_loop())
 
     async def _read_loop(self) -> None:
@@ -250,7 +251,7 @@ class WebSocketClient:
         try:
             reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout)
         except (OSError, asyncio.TimeoutError) as exc:
-            raise ConnectionError(f"{host}:{port} nicht erreichbar ({exc or 'Timeout'})") from exc
+            raise ConnectionError(Msg("{host}:{port} not reachable ({error})", host=host, port=port, error=str(exc) or "timeout")) from exc
         key = base64.b64encode(os.urandom(16)).decode()
         request = (
             f"GET {path} HTTP/1.1\r\nHost: {host}:{port}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
@@ -261,7 +262,7 @@ class WebSocketClient:
         status = await asyncio.wait_for(reader.readline(), timeout)
         if b" 101" not in status:
             writer.close()
-            raise ConnectionError(f"WebSocket-Handshake abgelehnt: {status.decode(errors='replace').strip()}")
+            raise ConnectionError(Msg("WebSocket handshake rejected: {status}", status=status.decode(errors="replace").strip()))
         while True:
             line = await asyncio.wait_for(reader.readline(), timeout)
             if line in (b"\r\n", b"\n", b""):

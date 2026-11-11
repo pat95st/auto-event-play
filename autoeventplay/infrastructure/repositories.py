@@ -8,6 +8,8 @@ from typing import Any
 
 from ..domain.levels import clamp_db
 from ..domain.model import (
+    normalize_order,
+    normalize_trim,
     INPUT_DEFS,
     CueAction,
     CuePhase,
@@ -103,14 +105,15 @@ class RoutingRepository:
     def load(self) -> RoutingState:
         order = {d.id: i for i, d in enumerate(INPUT_DEFS)}
         inputs = [
-            InputChannel(r["id"], r["name"], float(r["level_db"]), bool(r["muted"]), _eq(r.get("eq")))
+            InputChannel(r["id"], r["name"], float(r["level_db"]), bool(r["muted"]), _eq(r.get("eq")), _eq(r.get("dyn")),
+                         normalize_trim(r.get("trim_db") or 0.0), normalize_order(r.get("proc_order")))
             for r in self.db.fetchall("SELECT * FROM input_channels")
             if r["id"] in order
         ]
         inputs.sort(key=lambda i: order[i.id])
         outputs = [
             OutputChannel(r["id"], r["name"], r["device"], int(r["channel"]), float(r["level_db"]), bool(r["muted"]), int(r["sort"]),
-                          _eq(r.get("eq")))
+                          _eq(r.get("eq")), _eq(r.get("dyn")), normalize_order(r.get("proc_order")))
             for r in self.db.fetchall("SELECT * FROM output_channels ORDER BY sort, id")
         ]
         cps = {(r["input_id"], r["output_id"]) for r in self.db.fetchall("SELECT * FROM crosspoints")}
@@ -135,6 +138,17 @@ class RoutingRepository:
     def set_eq(self, channel_type: str, channel_id: str, eq: dict[str, Any]) -> None:
         table = "input_channels" if channel_type == "input" else "output_channels"
         self.db.execute(f"UPDATE {table} SET eq = ? WHERE id = ?", (json.dumps(eq), channel_id))
+
+    def set_dyn(self, channel_type: str, channel_id: str, dyn: dict[str, Any]) -> None:
+        table = "input_channels" if channel_type == "input" else "output_channels"
+        self.db.execute(f"UPDATE {table} SET dyn = ? WHERE id = ?", (json.dumps(dyn), channel_id))
+
+    def set_trim(self, input_id: str, trim_db: float) -> None:
+        self.db.execute("UPDATE input_channels SET trim_db = ? WHERE id = ?", (trim_db, input_id))
+
+    def set_order(self, channel_type: str, channel_id: str, order: str) -> None:
+        table = "input_channels" if channel_type == "input" else "output_channels"
+        self.db.execute(f"UPDATE {table} SET proc_order = ? WHERE id = ?", (order, channel_id))
 
     def set_crosspoint(self, input_id: str, output_id: str, enabled: bool) -> None:
         if enabled:

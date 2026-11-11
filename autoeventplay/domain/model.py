@@ -36,12 +36,34 @@ class InputDef:
 # e.g. a mono sum of the media can go out on one output and the speech sum on
 # another.
 INPUT_DEFS: tuple[InputDef, ...] = (
-    InputDef("media_l", "Medien L", SourceBus.MEDIA, 0),
-    InputDef("media_r", "Medien R", SourceBus.MEDIA, 1),
+    InputDef("media_l", "Media L", SourceBus.MEDIA, 0),
+    InputDef("media_r", "Media R", SourceBus.MEDIA, 1),
     InputDef("tts", "TTS", SourceBus.TTS, 0),
-    InputDef("recording", "Aufnahme", SourceBus.RECORDING, 0),
+    InputDef("recording", "Recording", SourceBus.RECORDING, 0),
 )
 INPUT_IDS = tuple(d.id for d in INPUT_DEFS)
+
+# Input trim range (dB) – like the gain/trim knob at the top of a console channel.
+TRIM_MIN_DB = -24.0
+TRIM_MAX_DB = 24.0
+# Order of EQ and compressor in a channel: "eq_dyn" = EQ before compressor (default), "dyn_eq" = compressor first.
+PROCESSING_ORDERS = ("eq_dyn", "dyn_eq")
+
+
+def normalize_trim(value: Any) -> float:
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    if v != v:  # NaN
+        return 0.0
+    return round(min(TRIM_MAX_DB, max(TRIM_MIN_DB, v)), 1)
+
+
+def normalize_order(value: Any) -> str:
+    return value if value in PROCESSING_ORDERS else "eq_dyn"
+# default names of versions before the English UI (still treated as "not renamed")
+LEGACY_INPUT_NAMES = {"media_l": "Medien L", "media_r": "Medien R", "recording": "Aufnahme"}
 
 
 @dataclass
@@ -51,6 +73,9 @@ class InputChannel:
     level_db: float = 0.0
     muted: bool = False
     eq: dict[str, Any] | None = None   # see domain/eq.py
+    dyn: dict[str, Any] | None = None  # compressor, see domain/dynamics.py
+    trim_db: float = 0.0               # input trim, applied before EQ and compressor
+    order: str = "eq_dyn"              # processing order, see PROCESSING_ORDERS
 
 
 @dataclass
@@ -63,6 +88,8 @@ class OutputChannel:
     muted: bool = False
     sort: int = 0
     eq: dict[str, Any] | None = None   # see domain/eq.py
+    dyn: dict[str, Any] | None = None  # compressor, see domain/dynamics.py
+    order: str = "eq_dyn"              # processing order, see PROCESSING_ORDERS
 
 
 @dataclass

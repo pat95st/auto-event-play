@@ -101,6 +101,17 @@ MIGRATIONS: list[str] = [
     ALTER TABLE input_channels ADD COLUMN eq TEXT;
     ALTER TABLE output_channels ADD COLUMN eq TEXT
     """,
+    # 3: channel compressors
+    """
+    ALTER TABLE input_channels ADD COLUMN dyn TEXT;
+    ALTER TABLE output_channels ADD COLUMN dyn TEXT
+    """,
+    # 4: input trim and EQ/compressor order
+    """
+    ALTER TABLE input_channels ADD COLUMN trim_db REAL NOT NULL DEFAULT 0;
+    ALTER TABLE input_channels ADD COLUMN proc_order TEXT NOT NULL DEFAULT 'eq_dyn';
+    ALTER TABLE output_channels ADD COLUMN proc_order TEXT NOT NULL DEFAULT 'eq_dyn'
+    """,
 ]
 
 

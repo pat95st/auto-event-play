@@ -3,7 +3,7 @@
 The option ``map`` is a JSON object with one entry per target kind::
 
     {
-      "channel": {"max": 32, "label": "Kanal",
+      "channel": {"max": 32, "label": "Channel",
                   "mute": "/ch/{n:02d}/mix/on", "mute_invert": true,
                   "level": "/ch/{n:02d}/mix/fader", "level_law": "x32"},
       "main":    {"mute": "/main/st/mix/on", "mute_invert": true,
@@ -25,9 +25,10 @@ from ...domain.levels import db_to_fader, db_to_gain, fader_to_db, gain_to_db, i
 from ...domain.model import MixerConfig, Target, TargetKind
 from .base import KindSpec, MixerError, OptionSpec, register_driver
 from .osc_base import OscMixerDriver, OscParam, _last_number
+from ...i18n import Msg
 
 EXAMPLE_MAP = {
-    "channel": {"max": 32, "label": "Kanal", "mute": "/ch/{n:02d}/mix/on", "mute_invert": True,
+    "channel": {"max": 32, "label": "Channel", "mute": "/ch/{n:02d}/mix/on", "mute_invert": True,
                 "level": "/ch/{n:02d}/mix/fader", "level_law": "x32"},
     "main": {"label": "Main", "mute": "/main/st/mix/on", "mute_invert": True, "level": "/main/st/mix/fader", "level_law": "x32"},
 }
@@ -39,24 +40,24 @@ def _load_map(config: MixerConfig | None) -> dict[str, Any]:
         try:
             raw = json.loads(raw)
         except ValueError as exc:
-            raise MixerError(f"Adress-Map ist kein gültiges JSON: {exc}") from exc
+            raise MixerError(Msg("The address map is not valid JSON: {error}", error=str(exc))) from exc
     if not isinstance(raw, dict):
-        raise MixerError("Adress-Map muss ein JSON-Objekt sein")
+        raise MixerError("The address map must be a JSON object")
     return raw
 
 
 @register_driver
 class GenericOscDriver(OscMixerDriver):
     type_id = "generic_osc"
-    display_name = "Generisches OSC-Pult"
+    display_name = "Generic OSC console"
     family = "Andere"
     default_port = 10023
     option_specs = [
         OptionSpec("map", "Adress-Map (JSON)", "json", json.dumps(EXAMPLE_MAP, indent=2),
-                   help="Je Zieltyp OSC-Adressen mit {n}/{d}, mute_invert und level_law (x32, db, linear, db_int)."),
-        OptionSpec("test_address", "Test-Adresse", "str", "/info", help="Wird beim Verbindungstest abgefragt."),
+                   help="OSC addresses per target type with {n}/{d}, mute_invert and level_law (x32, db, linear, db_int)."),
+        OptionSpec("test_address", "Test address", "str", "/info", help="Queried during the connection test."),
     ]
-    notes = "Für weitere Fabrikate mit OSC-Steuerung: Adressen in der Map eintragen, kein Programmieren nötig."
+    notes = "For other brands with OSC control: enter the addresses in the map, no programming needed."
 
     @classmethod
     def kinds_for(cls, config: MixerConfig | None) -> list[KindSpec]:
@@ -73,14 +74,14 @@ class GenericOscDriver(OscMixerDriver):
             kinds.append(KindSpec(kind, spec.get("label") or key, int(spec.get("max", 1)), mute=bool(spec.get("mute")),
                                   level=bool(spec.get("level")), dest_label=spec.get("dest_label"),
                                   dest_max=spec.get("dest_max")))
-        kinds.append(KindSpec(TargetKind.RAW, "Roh-OSC-Adresse"))
+        kinds.append(KindSpec(TargetKind.RAW, "Raw OSC address"))
         return kinds
 
     def param(self, target: Target, which: str) -> OscParam:
         spec = _load_map(self.config).get(target.kind.value) or {}
         template = spec.get(which)
         if not template:
-            raise MixerError(f"Keine {which}-Adresse für {target.kind.value} in der Map")
+            raise MixerError(Msg("No {which} address for {kind} in the map", which=which, kind=target.kind.value))
         address = template.format(n=target.number or 1, d=target.dest or 1)
         if which == "mute":
             invert = bool(spec.get("mute_invert"))

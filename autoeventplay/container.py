@@ -154,7 +154,7 @@ class Services:
         self.sync.start()
         self._meter_task = asyncio.create_task(self._meter_loop(), name="aep-meters")
         self.processed_repo.prune()
-        log.info("AutoEventPlay gestartet – Web-Oberfläche auf Port %d", self.config.port)
+        log.info("AutoEventPlay started – web interface on port %d", self.config.port)
 
     async def shutdown(self) -> None:
         if self._meter_task:

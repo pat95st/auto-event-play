@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de" data-bs-theme="dark">
+<html lang="{{ lang }}" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -14,27 +14,30 @@
 </head>
 <body data-authed="{{ '1' if user else '0' }}">
 {% if user %}
-  {% if not vendor_ok %}<div class="vendor-warning">Bootstrap ist nicht lokal installiert und wird aus dem Internet geladen – auf dem Pi bitte <code>deploy/install.sh</code> bzw. <code>scripts/fetch-vendor.sh</code> ausführen.</div>{% endif %}
+  {% if not vendor_ok %}<div class="vendor-warning">{{ _("Bootstrap is not installed locally and is loaded from the internet – on the Pi please run deploy/install.sh or scripts/fetch-vendor.sh.") }}</div>{% endif %}
   <header class="aep-topbar">
     <div class="container-fluid py-2 d-flex flex-wrap align-items-center gap-3">
       <a class="aep-brand" href="/"><span class="logo"></span>AutoEventPlay</a>
       <nav class="aep-nav nav flex-wrap">
-        <a class="nav-link {{ 'active' if active == 'mixer' }}" href="/">Mischpult</a>
-        <a class="nav-link {{ 'active' if active == 'routing' }}" href="/routing">Routing</a>
-        <a class="nav-link {{ 'active' if active == 'cues' }}" href="/cues">Cues</a>
-        <a class="nav-link {{ 'active' if active == 'consoles' }}" href="/pulte">Pulte</a>
-        <a class="nav-link {{ 'active' if active == 'instance' }}" href="/instanz">Instanz</a>
-        <a class="nav-link {{ 'active' if active == 'audio' }}" href="/audio">Audio</a>
-        <a class="nav-link {{ 'active' if active == 'logs' }}" href="/logs">Logs</a>
-        <a class="nav-link {{ 'active' if active == 'system' }}" href="/system">System</a>
+        <a class="nav-link {{ 'active' if active == 'mixer' }}" href="/">{{ _("Mixer") }}</a>
+        <a class="nav-link {{ 'active' if active == 'routing' }}" href="/routing">{{ _("Routing") }}</a>
+        <a class="nav-link {{ 'active' if active == 'cues' }}" href="/cues">{{ _("Cues") }}</a>
+        <a class="nav-link {{ 'active' if active == 'consoles' }}" href="/consoles">{{ _("Consoles") }}</a>
+        <a class="nav-link {{ 'active' if active == 'instance' }}" href="/instance">{{ _("Instance") }}</a>
+        <a class="nav-link {{ 'active' if active == 'audio' }}" href="/audio">{{ _("Audio") }}</a>
+        <a class="nav-link {{ 'active' if active == 'logs' }}" href="/logs">{{ _("Logs") }}</a>
+        <a class="nav-link {{ 'active' if active == 'system' }}" href="/system">{{ _("System") }}</a>
       </nav>
       <div class="aep-status ms-auto">
         <span class="aep-pill" id="st-play"><span class="aep-dot"></span><span class="txt">…</span></span>
         <span class="aep-pill" id="st-erm"><span class="aep-dot"></span><span class="txt">…</span></span>
         <span class="aep-pill" id="st-audio"><span class="aep-dot"></span><span class="txt">…</span></span>
         <span class="aep-pill" id="st-mixers"><span class="aep-dot"></span><span class="txt">…</span></span>
-        <button class="btn btn-sm btn-stop px-3" id="btn-stop" title="Alle laufenden Wiedergaben sofort stoppen">STOP</button>
-        <a href="#" id="btn-logout" class="btn btn-sm btn-console" title="Abmelden ({{ user }})">⏻</a>
+        <button class="btn btn-sm btn-stop px-3" id="btn-stop" title="{{ _('Stop all running playback immediately') }}">STOP</button>
+        <select class="form-select form-select-sm w-auto aep-lang" id="lang-select" aria-label="{{ _('Language') }}" title="{{ _('Language') }}">
+          {% for code, name in languages.items() %}<option value="{{ code }}" {{ 'selected' if code == lang }}>{{ code|upper }}</option>{% endfor %}
+        </select>
+        <a href="#" id="btn-logout" class="btn btn-sm btn-console" title="{{ _('Log out') }} ({{ user }})">⏻</a>
       </div>
     </div>
   </header>
@@ -42,8 +45,10 @@
 <main class="{{ 'container-fluid py-3' if user else '' }}">
 {% block content %}{% endblock %}
 </main>
+<script>window.AEP_LANG = {{ lang|tojson }}; window.AEP_I18N = {{ js_catalog|tojson }};</script>
 <script src="/static/js/app.js?v={{ version }}"></script>
 <script src="/static/js/eq.js?v={{ version }}"></script>
+<script src="/static/js/dyn.js?v={{ version }}"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

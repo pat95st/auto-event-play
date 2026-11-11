@@ -16,6 +16,7 @@ from ...domain.levels import MIN_DB, interpolate_table, is_off
 from ...domain.model import MixerConfig, Target, TargetKind
 from .base import KindSpec, MixerDriver, MixerError, OptionSpec, register_driver
 from .transports import WebSocketClient
+from ...i18n import Msg
 
 log = logging.getLogger("aep.mixer.ui")
 K = TargetKind
@@ -37,21 +38,21 @@ class SoundcraftUiDriver(MixerDriver):
     transport = "WebSocket"
     can_query = True
     kinds = [
-        KindSpec(K.CHANNEL, "Kanal", 24),
+        KindSpec(K.CHANNEL, "Channel", 24),
         KindSpec(K.STEREO_IN, "Line In", 2, number_labels={1: "Line In L", 2: "Line In R"}),
         KindSpec(K.FX_RETURN, "FX Return", 4),
         KindSpec(K.BUS, "Aux", 10),
         KindSpec(K.MAIN, "Master", 1, mute=False),
-        KindSpec(K.MUTE_GROUP, "Mute-Gruppe", 6, level=False),
-        KindSpec(K.SEND, "Kanal → Aux", 24, dest_label="Aux", dest_max=10),
-        KindSpec(K.RAW, "Roh-Pfad (z. B. p.0)"),
+        KindSpec(K.MUTE_GROUP, "Mute group", 6, level=False),
+        KindSpec(K.SEND, "Channel → aux", 24, dest_label="Aux", dest_max=10),
+        KindSpec(K.RAW, "Raw path (e.g. p.0)"),
     ]
     option_specs = [
-        OptionSpec("fader_table", "Faderkurve (JSON, optional)", "json", None,
-                   help='Kalibrierpunkte [[dB, Wert 0..1], …] falls Pegel nicht exakt passen.'),
+        OptionSpec("fader_table", "Fader curve (JSON, optional)", "json", None,
+                   help='Calibration points [[dB, value 0..1], …] if levels do not match exactly.'),
     ]
-    notes = ("Steuerung über die WebSocket-Schnittstelle der Ui-Weboberfläche (kein OSC). "
-             "Ui12/Ui16 haben weniger Kanäle und Aux-Wege als der Ui24R. Roh-Pfade: z. B. p.0 (Player), v.0 (VCA).")
+    notes = ("Controlled via the WebSocket interface of the Ui web app (no OSC). "
+             "Ui12/Ui16 have fewer channels and aux buses than the Ui24R. Raw paths: e.g. p.0 (player), v.0 (VCA).")
 
     def __init__(self, config: MixerConfig):
         super().__init__(config)
@@ -102,7 +103,7 @@ class SoundcraftUiDriver(MixerDriver):
     async def test(self) -> str:
         await self.connect()
         model = self._state.get("model") or self._state.get("settings.model") or "Ui"
-        return f"Verbunden ({model}, {len(self._state)} Parameter empfangen)"
+        return Msg("Connected ({model}, {count} parameters received)", model=model, count=len(self._state))
 
     # ------------------------------------------------------------- mapping
 
@@ -123,7 +124,7 @@ class SoundcraftUiDriver(MixerDriver):
             return f"i.{n}.aux.{(target.dest or 1) - 1}"
         if k == K.RAW:
             return (target.raw or "").strip()
-        raise MixerError(f"nicht unterstützt: {k.value}")
+        raise MixerError(Msg("not supported: {kind}", kind=k.value))
 
     def _table(self) -> list[tuple[float, float]]:
         custom = self.option("fader_table")
@@ -132,7 +133,7 @@ class SoundcraftUiDriver(MixerDriver):
                 points = json.loads(custom) if isinstance(custom, str) else custom
                 return sorted((float(a), float(b)) for a, b in points)
             except (ValueError, TypeError):
-                log.warning("Ungültige Faderkurve für %s – Standard wird verwendet", self.config.name)
+                log.warning("Invalid fader curve for %s – using default", self.config.name)
         return UI_FADER_TABLE
 
     def db_to_value(self, db: float | None) -> float:

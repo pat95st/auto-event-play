@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from ... import __version__
+from ...i18n import Msg
 
 log = logging.getLogger("aep.erm")
 
@@ -60,7 +61,7 @@ class ErmClient:
     def _request(self, method: str, path: str, body: dict[str, Any] | None = None, auth: bool = True,
                  timeout: float | None = None) -> tuple[int, bytes]:
         if not self.base_url:
-            raise ErmError("Keine eventrentmanager-URL eingestellt")
+            raise ErmError("No eventrentmanager URL configured")
         data = json.dumps(body).encode("utf-8") if body is not None else None
         req = urllib.request.Request(self._url(path), data=data, method=method)
         req.add_header("User-Agent", USER_AGENT)
@@ -79,18 +80,18 @@ class ErmClient:
                 raise ErmUnauthorized(message, 401) from exc
             raise ErmError(message, exc.code) from exc
         except urllib.error.URLError as exc:
-            raise ErmError(f"Server nicht erreichbar: {exc.reason}") from exc
+            raise ErmError(Msg("Server not reachable: {error}", error=str(exc.reason))) from exc
         except (TimeoutError, OSError) as exc:
-            raise ErmError(f"Server nicht erreichbar: {exc}") from exc
+            raise ErmError(Msg("Server not reachable: {error}", error=str(exc))) from exc
 
     def _json(self, method: str, path: str, body: dict[str, Any] | None = None, auth: bool = True) -> dict[str, Any]:
         _, payload = self._request(method, path, body, auth)
         try:
             data = json.loads(payload.decode("utf-8") or "{}")
         except ValueError as exc:
-            raise ErmError("Antwort ist kein JSON – stimmt die URL?") from exc
+            raise ErmError("Response is not JSON – is the URL correct?") from exc
         if not isinstance(data, dict):
-            raise ErmError("Unerwartete Antwort vom Server")
+            raise ErmError("Unexpected response from the server")
         return data
 
     # ------------------------------------------------------------------ API (sync)
@@ -127,11 +128,11 @@ class ErmClient:
         except urllib.error.HTTPError as exc:
             tmp.unlink(missing_ok=True)
             if exc.code == 401:
-                raise ErmUnauthorized("Download nicht erlaubt (Token ungültig)", 401) from exc
-            raise ErmError(_error_message(exc.read()) or f"Download fehlgeschlagen (HTTP {exc.code})", exc.code) from exc
+                raise ErmUnauthorized("Download not allowed (invalid token)", 401) from exc
+            raise ErmError(_error_message(exc.read()) or Msg("Download failed (HTTP {code})", code=exc.code), exc.code) from exc
         except (urllib.error.URLError, OSError) as exc:
             tmp.unlink(missing_ok=True)
-            raise ErmError(f"Download fehlgeschlagen: {exc}") from exc
+            raise ErmError(Msg("Download failed: {error}", error=str(exc))) from exc
         tmp.replace(target)
         return size
 

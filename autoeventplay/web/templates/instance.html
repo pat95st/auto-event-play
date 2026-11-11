@@ -3,52 +3,52 @@
 <div class="row g-3">
   <div class="col-xl-5">
     <div class="aep-panel">
-      <div class="aep-panel-head"><span>eventrentmanager-Instanz</span><span id="conn" class="aep-pill"><span class="aep-dot"></span><span class="txt">…</span></span></div>
+      <div class="aep-panel-head"><span>{{ _("eventrentmanager instance") }}</span><span id="conn" class="aep-pill"><span class="aep-dot"></span><span class="txt">…</span></span></div>
       <div class="aep-panel-body">
         <form id="settings-form">
-          <div class="mb-2"><label class="form-label">URL der Instanz</label><input class="form-control" name="base_url" placeholder="https://verleih.example.de" inputmode="url"></div>
-          <div class="mb-2"><label class="form-label">Gerätename (erscheint im eventrentmanager)</label><input class="form-control" name="device_name" placeholder="AutoEventPlay FOH"></div>
-          <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="verify_tls" id="verify_tls" checked><label class="form-check-label" for="verify_tls">TLS-Zertifikat prüfen</label></div>
-          <button class="btn btn-console" type="submit">Speichern</button>
+          <div class="mb-2"><label class="form-label">{{ _("Instance URL") }}</label><input class="form-control" name="base_url" placeholder="https://verleih.example.de" inputmode="url"></div>
+          <div class="mb-2"><label class="form-label">{{ _("Device name (shown in eventrentmanager)") }}</label><input class="form-control" name="device_name" placeholder="AutoEventPlay FOH"></div>
+          <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="verify_tls" id="verify_tls" checked><label class="form-check-label" for="verify_tls">{{ _("Verify TLS certificate") }}</label></div>
+          <button class="btn btn-console" type="submit">{{ _("Save") }}</button>
         </form>
         <hr>
-        <div class="aep-section-title">Mit Veranstaltung koppeln</div>
-        <p class="form-text mt-0">Im eventrentmanager in der Veranstaltung unter <em>Audio &amp; Durchsagen › Abspielgerät per Code koppeln</em> einen Code erzeugen und hier eingeben. Ein bereits gekoppeltes Gerät wird dabei der neuen Veranstaltung zugeordnet.</p>
+        <div class="aep-section-title">{{ _("Pair with an event") }}</div>
+        <p class="form-text mt-0">{{ _("In eventrentmanager, open the event, go to Audio & announcements › Pair player by code, generate a code and enter it here. An already paired device is moved to the new event.") }}</p>
         <form id="pair-form" class="d-flex gap-2 align-items-stretch">
-          <input class="form-control code-input" name="code" maxlength="7" placeholder="000000" inputmode="numeric" autocomplete="one-time-code" aria-label="6-stelliger Code">
-          <button class="btn btn-primary px-4" type="submit">Koppeln</button>
+          <input class="form-control code-input" name="code" maxlength="7" placeholder="000000" inputmode="numeric" autocomplete="one-time-code" aria-label="{{ _('6-digit code') }}">
+          <button class="btn btn-primary px-4" type="submit">{{ _("Pair") }}</button>
         </form>
         <details class="mt-3">
-          <summary class="small text-dim">Alternativ: Geräte-Token manuell eintragen</summary>
+          <summary class="small text-dim">{{ _("Alternatively: enter a device token manually") }}</summary>
           <form id="token-form" class="d-flex gap-2 mt-2">
             <input class="form-control mono small" name="token" placeholder="mvp_…" autocomplete="off">
-            <button class="btn btn-console" type="submit">Übernehmen</button>
+            <button class="btn btn-console" type="submit">{{ _("Apply") }}</button>
           </form>
-          <div class="form-text">Token aus <em>Einstellungen › Veranstaltungs-Audio</em> im eventrentmanager.</div>
+          <div class="form-text">{{ _("Token from Settings › Event audio in eventrentmanager.") }}</div>
         </details>
         <hr>
         <div class="d-flex gap-2">
-          <button class="btn btn-sm btn-console" id="btn-sync">Jetzt synchronisieren</button>
-          <button class="btn btn-sm btn-outline-danger ms-auto" id="btn-unpair">Kopplung aufheben</button>
+          <button class="btn btn-sm btn-console" id="btn-sync">{{ _("Synchronise now") }}</button>
+          <button class="btn btn-sm btn-outline-danger ms-auto" id="btn-unpair">{{ _("Unpair") }}</button>
         </div>
       </div>
     </div>
   </div>
   <div class="col-xl-7 d-flex flex-column gap-3">
     <div class="aep-panel">
-      <div class="aep-panel-head"><span>Status</span></div>
+      <div class="aep-panel-head"><span>{{ _("Status") }}</span></div>
       <div class="aep-panel-body">
         <dl class="row mb-0 small" id="status"></dl>
       </div>
     </div>
     <div class="aep-panel">
-      <div class="aep-panel-head"><span>Lokal vorgehaltene Dateien</span><span class="text-dim" id="files-count"></span></div>
+      <div class="aep-panel-head"><span>{{ _("Locally cached files") }}</span><span class="text-dim" id="files-count"></span></div>
       <div class="aep-panel-body">
-        <table class="table table-sm mb-0"><thead><tr><th>Art</th><th>Titel</th><th>Datei</th><th class="text-end">Größe</th><th></th></tr></thead><tbody id="files"></tbody></table>
+        <table class="table table-sm mb-0"><thead><tr><th>{{ _("Kind") }}</th><th>{{ _("Title") }}</th><th>{{ _("File") }}</th><th class="text-end">{{ _("Size") }}</th><th></th></tr></thead><tbody id="files"></tbody></table>
       </div>
     </div>
     <div class="aep-panel">
-      <div class="aep-panel-head"><span>Geplante Einspieler &amp; Programm</span></div>
+      <div class="aep-panel-head"><span>{{ _("Scheduled clips & programme") }}</span></div>
       <div class="aep-panel-body"><ul class="list-compact" id="scheduled"></ul></div>
     </div>
   </div>
@@ -57,6 +57,7 @@
 {% block scripts %}
 <script>
 (function () {
+  const T = AEP.t;
   const sf = document.getElementById("settings-form");
   let filled = false;
   async function load() {
@@ -70,51 +71,51 @@
     const st = d.status;
     const pill = document.getElementById("conn");
     pill.querySelector(".aep-dot").className = "aep-dot " + (st.online ? "ok" : (d.paired ? "err" : "warn"));
-    pill.querySelector(".txt").textContent = st.online ? "online" : (d.paired ? "offline" : "nicht gekoppelt");
+    pill.querySelector(".txt").textContent = st.online ? T("online") : (d.paired ? T("offline") : T("not paired"));
     const r = d.rental;
     const rows = [
-      ["Verbindung", AEP.esc(st.message)],
-      ["Gerät", d.player ? AEP.esc(d.player.name) + ' <span class="text-dim mono">' + AEP.esc(d.token_hint || "") + "</span>" : "—"],
-      ["Veranstaltung", r ? `<strong>${AEP.esc(r.name)}</strong>${r.location ? " · " + AEP.esc(r.location) : ""}<br><span class="text-dim">${AEP.esc(r.start_date)} – ${AEP.esc(r.end_date)}</span>` : '<span class="text-dim">keine laufende Veranstaltung zugeordnet</span>'],
-      ["Sprachausgabe", d.tts ? `${AEP.esc(d.tts.language)} · Stimme ${AEP.esc(d.tts.voice || "Standard")} · Tempo ${d.tts.rate}` : "—"],
-      ["Letzter Kontakt", st.last_ok ? AEP.fmtTime(st.last_ok) : "—"],
-      ["Letzter Fehler", st.last_error ? '<span class="text-warning">' + AEP.esc(st.last_error) + "</span>" : "—"],
+      [T("Connection"), AEP.esc(st.message)],
+      [T("Device"), d.player ? AEP.esc(d.player.name) + ' <span class="text-dim mono">' + AEP.esc(d.token_hint || "") + "</span>" : "—"],
+      [T("Event"), r ? `<strong>${AEP.esc(r.name)}</strong>${r.location ? " · " + AEP.esc(r.location) : ""}<br><span class="text-dim">${AEP.esc(r.start_date)} – ${AEP.esc(r.end_date)}</span>` : '<span class="text-dim">' + AEP.esc(T("no current event assigned")) + '</span>'],
+      [T("Speech output"), d.tts ? `${AEP.esc(d.tts.language)} · ${AEP.esc(T("voice"))} ${AEP.esc(d.tts.voice || T("Default"))} · ${AEP.esc(T("rate"))} ${d.tts.rate}` : "—"],
+      [T("Last contact"), st.last_ok ? AEP.fmtTime(st.last_ok) : "—"],
+      [T("Last error"), st.last_error ? '<span class="text-warning">' + AEP.esc(st.last_error) + "</span>" : "—"],
     ];
     document.getElementById("status").innerHTML = rows.map((x) => `<dt class="col-sm-4 text-dim fw-normal">${x[0]}</dt><dd class="col-sm-8">${x[1]}</dd>`).join("");
-    document.getElementById("files-count").textContent = d.files.length + " Datei(en)";
-    document.getElementById("files").innerHTML = d.files.length ? d.files.map((f) => `<tr><td><span class="badge badge-kind kind-${f.kind}">${AEP.kindLabel[f.kind] || f.kind}</span></td><td>${AEP.esc(f.title)}</td><td class="small text-dim">${AEP.esc(f.filename || "")}</td><td class="text-end small">${((f.size || 0) / 1048576).toFixed(1)} MB</td><td class="text-end"><button class="btn btn-sm btn-console" data-play="${AEP.esc(f.id)}" data-kind="${AEP.esc(f.kind)}" title="Testweise abspielen">▶</button></td></tr>`).join("") : '<tr><td colspan="5" class="text-dim">Keine Dateien – sobald eine Veranstaltung aktiv ist, werden Jingles und Audio-Dateien automatisch geladen.</td></tr>';
-    const sched = (d.scheduled || []).map((x) => ({ t: x.play_at, label: "Einspieler" + (x.note ? ": " + x.note : ""), kind: "audio" }))
-      .concat((d.minute_programs || []).map((x) => ({ t: x.start_at, label: "Programm: " + x.name, kind: "any" })))
+    document.getElementById("files-count").textContent = T("{n} file(s)", { n: d.files.length });
+    document.getElementById("files").innerHTML = d.files.length ? d.files.map((f) => `<tr><td><span class="badge badge-kind kind-${f.kind}">${AEP.kindLabel[f.kind] || f.kind}</span></td><td>${AEP.esc(f.title)}</td><td class="small text-dim">${AEP.esc(f.filename || "")}</td><td class="text-end small">${((f.size || 0) / 1048576).toFixed(1)} MB</td><td class="text-end"><button class="btn btn-sm btn-console" data-play="${AEP.esc(f.id)}" data-kind="${AEP.esc(f.kind)}" title="${AEP.esc(T("Play as test"))}">▶</button></td></tr>`).join("") : '<tr><td colspan="5" class="text-dim">' + AEP.esc(T("No files – as soon as an event is active, jingles and audio files are downloaded automatically.")) + '</td></tr>';
+    const sched = (d.scheduled || []).map((x) => ({ t: x.play_at, label: T("Clip") + (x.note ? ": " + x.note : ""), kind: "audio" }))
+      .concat((d.minute_programs || []).map((x) => ({ t: x.start_at, label: T("Programme:") + " " + x.name, kind: "any" })))
       .sort((a, b) => (a.t || "").localeCompare(b.t || ""));
-    document.getElementById("scheduled").innerHTML = sched.length ? sched.map((x) => `<li><span class="mono small text-dim">${AEP.esc(new Date(x.t).toLocaleString("de-DE", { weekday: "short", hour: "2-digit", minute: "2-digit" }))}</span><span class="badge badge-kind kind-${x.kind}">${x.kind === "audio" ? "geplant" : "Programm"}</span><span>${AEP.esc(x.label)}</span></li>`).join("") : '<li class="text-dim">nichts geplant</li>';
+    document.getElementById("scheduled").innerHTML = sched.length ? sched.map((x) => `<li><span class="mono small text-dim">${AEP.esc(new Date(x.t).toLocaleString(AEP.lang === "de" ? "de-DE" : "en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" }))}</span><span class="badge badge-kind kind-${x.kind}">${AEP.esc(x.kind === "audio" ? T("scheduled") : T("Programme"))}</span><span>${AEP.esc(x.label)}</span></li>`).join("") : '<li class="text-dim">' + AEP.esc(T("nothing scheduled")) + '</li>';
   }
   sf.addEventListener("submit", async (e) => {
     e.preventDefault();
-    await AEP.run(() => AEP.api("/api/erm/settings", { base_url: sf.base_url.value, device_name: sf.device_name.value, verify_tls: sf.verify_tls.checked }), "Gespeichert");
+    await AEP.run(() => AEP.api("/api/erm/settings", { base_url: sf.base_url.value, device_name: sf.device_name.value, verify_tls: sf.verify_tls.checked }), T("Saved"));
     load();
   });
   document.getElementById("pair-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const r = await AEP.run(() => AEP.api("/api/erm/pair", { base_url: sf.base_url.value, code: e.target.code.value, device_name: sf.device_name.value }),
-      (r) => "Gekoppelt" + (r.rental ? " mit „" + r.rental.name + "“" : ""));
+      (r) => (r.rental ? T("Paired with “{name}”", { name: r.rental.name }) : T("Paired")));
     e.target.code.value = "";
     setTimeout(load, 800);
   });
   document.getElementById("token-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    await AEP.run(() => AEP.api("/api/erm/settings", { base_url: sf.base_url.value, device_name: sf.device_name.value, verify_tls: sf.verify_tls.checked, token: e.target.token.value }), "Token übernommen");
+    await AEP.run(() => AEP.api("/api/erm/settings", { base_url: sf.base_url.value, device_name: sf.device_name.value, verify_tls: sf.verify_tls.checked, token: e.target.token.value }), T("Token applied"));
     e.target.token.value = "";
     setTimeout(load, 800);
   });
-  document.getElementById("btn-sync").addEventListener("click", () => AEP.run(() => AEP.api("/api/erm/sync", {}), "Synchronisation angestoßen").then(() => setTimeout(load, 1500)));
+  document.getElementById("btn-sync").addEventListener("click", () => AEP.run(() => AEP.api("/api/erm/sync", {}), T("Synchronisation started")).then(() => setTimeout(load, 1500)));
   document.getElementById("btn-unpair").addEventListener("click", async () => {
-    if (!confirm("Kopplung wirklich aufheben? Das Gerät holt dann keine Aufträge mehr ab.")) return;
-    await AEP.run(() => AEP.api("/api/erm/unpair", {}), "Kopplung aufgehoben");
+    if (!confirm(T("Really unpair? The device will no longer fetch jobs."))) return;
+    await AEP.run(() => AEP.api("/api/erm/unpair", {}), T("Unpaired"));
     load();
   });
   document.getElementById("files").addEventListener("click", (e) => {
     const b = e.target.closest("[data-play]");
-    if (b) AEP.run(() => AEP.api("/api/playback/test", { kind: b.dataset.kind === "jingle" ? "jingle" : "audio", file_id: b.dataset.play }), "Eingereiht");
+    if (b) AEP.run(() => AEP.api("/api/playback/test", { kind: b.dataset.kind === "jingle" ? "jingle" : "audio", file_id: b.dataset.play }), T("Queued"));
   });
   AEP.on("changed", () => setTimeout(load, 200));
   load();

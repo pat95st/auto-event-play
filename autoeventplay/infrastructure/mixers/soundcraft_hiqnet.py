@@ -12,7 +12,7 @@ Remote session with Wireshark (HiQnet dissector).
 Map format::
 
     {
-      "channel": {"max": 32, "label": "Kanal",
+      "channel": {"max": 32, "label": "Channel",
                   "vd": 3, "object": 256, "object_step": 1,
                   "mute_sv": 1, "mute_type": "ubyte", "mute_invert": false,
                   "level_sv": 0, "level_type": "long", "level_law": "db100", "level_min": -13800},
@@ -35,6 +35,7 @@ from ...domain.levels import MIN_DB, db_to_fader, db_to_gain, fader_to_db, gain_
 from ...domain.model import MixerConfig, Target, TargetKind
 from .base import KindSpec, MixerDriver, MixerError, OptionSpec, register_driver
 from .transports import TcpClient
+from ...i18n import Msg
 
 log = logging.getLogger("aep.mixer.hiqnet")
 K = TargetKind
@@ -108,7 +109,7 @@ def decode_params(payload: bytes) -> dict[int, Any]:
 
 
 EXAMPLE_MAP: dict[str, Any] = {
-    "channel": {"max": 32, "label": "Kanal", "vd": 3, "object": 256, "object_step": 1,
+    "channel": {"max": 32, "label": "Channel", "vd": 3, "object": 256, "object_step": 1,
                 "mute_sv": 1, "mute_type": "ubyte", "level_sv": 0, "level_type": "long", "level_law": "db100"},
 }
 
@@ -122,9 +123,9 @@ def _load_map(config: MixerConfig | None) -> dict[str, Any]:
         try:
             raw = json.loads(raw)
         except ValueError as exc:
-            raise MixerError(f"Adress-Map ist kein gültiges JSON: {exc}") from exc
+            raise MixerError(Msg("The address map is not valid JSON: {error}", error=str(exc))) from exc
     if not isinstance(raw, dict):
-        raise MixerError("Adress-Map muss ein JSON-Objekt sein")
+        raise MixerError("The address map must be a JSON object")
     return raw
 
 
@@ -134,10 +135,10 @@ class _SoundcraftHiqnetBase(MixerDriver):
     transport = "HiQnet/TCP"
     can_query = True
     option_specs = [
-        OptionSpec("device", "HiQnet-Adresse des Pults", "int", 1, help="Steht am Pult in den HiQnet-/Netzwerk-Einstellungen."),
-        OptionSpec("source_device", "Eigene HiQnet-Adresse", "int", 1337, help="Muss im Netz eindeutig sein; bei Zugriffskontrolle am Pult freigeben."),
+        OptionSpec("device", "HiQnet address of the console", "int", 1, help="Shown in the console's HiQnet/network settings."),
+        OptionSpec("source_device", "Own HiQnet address", "int", 1337, help="Must be unique on the network; allow it on the console if access control is on."),
         OptionSpec("map", "Adress-Map (JSON)", "json", json.dumps(EXAMPLE_MAP, indent=2),
-                   help="Virtual Device, Objekt und Parameter-IDs je Zieltyp – Soundcraft veröffentlicht diese nicht, siehe Dokumentation."),
+                   help="Virtual device, object and parameter IDs per target type – Soundcraft does not publish these, see documentation."),
     ]
 
     @classmethod
@@ -155,7 +156,7 @@ class _SoundcraftHiqnetBase(MixerDriver):
             kinds.append(KindSpec(kind, spec.get("label") or key, int(spec.get("max", 1)),
                                   mute="mute_sv" in spec, level="level_sv" in spec,
                                   dest_label=spec.get("dest_label"), dest_max=spec.get("dest_max")))
-        kinds.append(KindSpec(TargetKind.RAW, "Roh: vd/objekt/sv/typ (z. B. 3/256/1/ubyte)"))
+        kinds.append(KindSpec(TargetKind.RAW, "Raw: vd/object/sv/type (e.g. 3/256/1/ubyte)"))
         return kinds
 
     def __init__(self, config: MixerConfig):
@@ -177,23 +178,23 @@ class _SoundcraftHiqnetBase(MixerDriver):
         if target.kind == K.RAW:
             parts = (target.raw or "").replace(" ", "").split("/")
             if len(parts) < 3:
-                raise MixerError("Roh-Adresse: vd/objekt/sv[/typ], z. B. 3/256/1/ubyte")
+                raise MixerError("Raw address: vd/object/sv[/type], e.g. 3/256/1/ubyte")
             vd, obj, sv = (int(p, 0) for p in parts[:3])
             dtype = parts[3] if len(parts) > 3 else ("ubyte" if which == "mute" else "long")
             return self._dst(vd, obj), sv, dtype, {"level_law": "db100"}
         spec = _load_map(self.config).get(target.kind.value)
         if not spec:
-            raise MixerError(f"Keine HiQnet-Adresse für {target.kind.value} in der Map")
+            raise MixerError(Msg("No HiQnet address for {kind} in the map", kind=target.kind.value))
         key_sv = "mute_sv" if which == "mute" else "level_sv"
         if key_sv not in spec:
-            raise MixerError(f"Map: {key_sv} fehlt für {target.kind.value}")
+            raise MixerError(Msg("Map: {key} missing for {kind}", key=key_sv, kind=target.kind.value))
         n = (target.number or 1) - 1
         obj = int(spec.get("object", 0)) + n * int(spec.get("object_step", 1))
         if target.kind == K.SEND:
             obj += ((target.dest or 1) - 1) * int(spec.get("dest_step", 0))
         dtype = spec.get("mute_type" if which == "mute" else "level_type", "ubyte" if which == "mute" else "long")
         if dtype not in DATA_TYPES:
-            raise MixerError(f"Unbekannter HiQnet-Datentyp {dtype}")
+            raise MixerError(Msg("Unknown HiQnet data type {type}", type=dtype))
         return self._dst(int(spec.get("vd", 0)), obj), int(spec[key_sv]), dtype, spec
 
     @staticmethod
@@ -267,7 +268,7 @@ class _SoundcraftHiqnetBase(MixerDriver):
 
     async def test(self) -> str:
         await self.connect()
-        return f"TCP-Verbindung zu {self.host}:{self.port} steht (HiQnet-Adresse {self.option('device', 1)})"
+        return Msg("TCP connection to {host}:{port} established (HiQnet address {device})", host=self.host, port=self.port, device=self.option("device", 1))
 
     async def set_mute(self, target: Target, muted: bool) -> None:
         self.validate(target, "mute")
@@ -311,14 +312,14 @@ class _SoundcraftHiqnetBase(MixerDriver):
 @register_driver
 class SoundcraftSiDriver(_SoundcraftHiqnetBase):
     type_id = "soundcraft_si"
-    display_name = "Soundcraft Si (Expression/Performer/Impact/Compact) – experimentell"
-    notes = ("Steuerung über HiQnet (TCP 3804), wie ViSi Remote. Soundcraft veröffentlicht die Parameter-Adressen nicht – "
-             "sie müssen in der Adress-Map eingetragen werden. Am Pult HiQnet-Zugriffskontrolle deaktivieren oder freigeben.")
+    display_name = "Soundcraft Si (Expression/Performer/Impact/Compact) (experimental)"
+    notes = ("Control via HiQnet (TCP 3804), like ViSi Remote. Soundcraft does not publish the parameter addresses – "
+             "they have to be entered in the address map. Disable HiQnet access control on the console or allow this device.")
 
 
 @register_driver
 class SoundcraftViDriver(_SoundcraftHiqnetBase):
     type_id = "soundcraft_vi"
-    display_name = "Soundcraft Vi (Vi1000/2000/3000/5000/7000) – experimentell"
-    notes = ("Steuerung über HiQnet (TCP 3804) am Ethernet-/HiQnet-Port der Konsole. Soundcraft veröffentlicht die "
-             "Parameter-Adressen nicht – sie müssen in der Adress-Map eingetragen werden.")
+    display_name = "Soundcraft Vi (Vi1000/2000/3000/5000/7000) (experimental)"
+    notes = ("Control via HiQnet (TCP 3804) on the console's Ethernet/HiQnet port. Soundcraft does not publish the "
+             "parameter addresses – they have to be entered in the address map.")

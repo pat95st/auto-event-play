@@ -27,10 +27,13 @@ from typing import Any, Callable
 
 import numpy as np
 
+from ...domain.dynamics import is_active as dyn_active
 from ...domain.eq import design_sos
 from ...domain.levels import MIN_DB, db_to_gain, gain_to_db
 from ...domain.model import INPUT_DEFS, RoutingState, SourceBus
+from .dyn_processor import DynState
 from .eq_processor import EqState
+from ...i18n import Msg
 
 log = logging.getLogger("aep.audio")
 
@@ -41,8 +44,24 @@ except Exception:  # pragma: no cover - depends on the machine
 
 
 BUS_CHANNELS = {SourceBus.MEDIA: 2, SourceBus.TTS: 1, SourceBus.RECORDING: 1}
-TEST_TONE_HZ = 1000.0
-TEST_TONE_DB = -18.0
+TEST_TONE_DB = -18.0  # pink noise test signal, RMS level in dBFS
+PINK_LOOP_SAMPLES = 1 << 19  # ~10.9 s at 48 kHz, seamless loop
+
+
+def make_pink_noise(n: int, sample_rate: int, rms_db: float = TEST_TONE_DB, seed: int = 1) -> np.ndarray:
+    """Pink noise (−3 dB/octave, band-limited 20 Hz – 20 kHz) as a seamless loop, normalised to an RMS level.
+
+    Synthesised in the frequency domain: an inverse FFT is periodic, so the loop has no click at the seam.
+    """
+    rng = np.random.default_rng(seed)
+    freqs = np.fft.rfftfreq(n, 1.0 / sample_rate)
+    spectrum = rng.standard_normal(len(freqs)) + 1j * rng.standard_normal(len(freqs))
+    mag = np.zeros_like(freqs)
+    band = (freqs >= 20.0) & (freqs <= min(20000.0, sample_rate / 2))
+    mag[band] = 1.0 / np.sqrt(freqs[band])
+    noise = np.fft.irfft(spectrum * mag, n)
+    noise *= db_to_gain(rms_db) / np.sqrt(np.mean(noise ** 2))
+    return noise.astype(np.float32)
 
 
 class Voice:
@@ -125,6 +144,23 @@ class _Snapshot:
     # EQ states per column (None = bypass)
     input_eq: list[EqState | None] = field(default_factory=list)
     output_eq: list[EqState | None] = field(default_factory=list)
+    input_dyn: list[DynState | None] = field(default_factory=list)
+    output_dyn: list[DynState | None] = field(default_factory=list)
+    # input trim gains (applied first) and per column: True = compressor before EQ
+    input_trims: np.ndarray | None = None
+    input_dyn_first: list[bool] = field(default_factory=list)
+    output_dyn_first: list[bool] = field(default_factory=list)
+
+
+def _process_channel(sig: np.ndarray, eq: EqState | None, dyn: DynState | None, dyn_first: bool) -> np.ndarray:
+    """Channel processing: EQ and compressor in the configured order (None = bypassed)."""
+    if eq is None and dyn is None:
+        return sig
+    stages = (dyn, eq) if dyn_first else (eq, dyn)
+    for stage in stages:
+        if stage is not None:
+            sig = stage.process(sig)
+    return sig
 
 
 class _DeviceStream:
@@ -157,10 +193,12 @@ class AudioEngine:
         self._peak_in: np.ndarray = np.zeros(len(INPUT_DEFS), dtype=np.float32)
         self._peak_out: np.ndarray = np.zeros(0, dtype=np.float32)
         self._test_tones: set[str] = set()
-        self._tone_phase = 0.0
-        self.status_message = "gestoppt"
+        self._tone_phase = 0
+        self._pink: np.ndarray | None = None  # generated on first use
+        self.status_message = Msg("stopped")
         self.callback_errors = 0
         self._eq_states: dict[str, EqState] = {}
+        self._dyn_states: dict[str, DynState] = {}
         self._last_state: RoutingState | None = None
 
     # ------------------------------------------------------------------ setup
@@ -188,7 +226,13 @@ class AudioEngine:
             device_map.setdefault(o.device, []).append((k, o.channel))
         in_eq = [self._eq_state("in:" + i, by_id[i].eq if i in by_id else None) for i in input_ids]
         out_eq = [self._eq_state("out:" + o.id, o.eq) for o in outputs]
-        snap = _Snapshot(input_ids, [o.id for o in outputs], in_gains, out_gains, matrix, device_map, in_eq, out_eq)
+        in_dyn = [self._dyn_state("in:" + i, by_id[i].dyn if i in by_id else None) for i in input_ids]
+        out_dyn = [self._dyn_state("out:" + o.id, o.dyn) for o in outputs]
+        in_trims = np.array([db_to_gain(by_id[i].trim_db) if i in by_id else 1.0 for i in input_ids], dtype=np.float32)
+        in_first = [bool(i in by_id and by_id[i].order == "dyn_eq") for i in input_ids]
+        out_first = [o.order == "dyn_eq" for o in outputs]
+        snap = _Snapshot(input_ids, [o.id for o in outputs], in_gains, out_gains, matrix, device_map, in_eq, out_eq, in_dyn, out_dyn,
+                         in_trims, in_first, out_first)
         with self._lock:
             layout_changed = self._snap is None or self._snap.device_map != snap.device_map
             self._snap = snap
@@ -207,6 +251,16 @@ class AudioEngine:
         if state is None:
             state = self._eq_states[key] = EqState()
         state.update(sos)
+        return state
+
+    def _dyn_state(self, key: str, dyn: dict | None) -> DynState | None:
+        if not dyn_active(dyn):
+            self._dyn_states.pop(key, None)
+            return None
+        state = self._dyn_states.get(key)
+        if state is None:
+            state = self._dyn_states[key] = DynState(self.sample_rate)
+        state.update(dyn, self.sample_rate)
         return state
 
     def start(self) -> None:
@@ -230,6 +284,7 @@ class AudioEngine:
         self.sample_rate, self.blocksize = sample_rate, blocksize
         if changed and self._last_state is not None:
             self._eq_states.clear()
+            self._dyn_states.clear()
             self.apply_routing(self._last_state)
         if changed and self._running:
             self.restart()
@@ -241,10 +296,10 @@ class AudioEngine:
         self._streams = []
         self._master = None
         if snap is None:
-            self._start_null_clock("keine Ausgänge konfiguriert")
+            self._start_null_clock(Msg("no outputs configured"))
             return
         if self.backend != "sounddevice" or sd is None:
-            reason = "Audio-Backend 'null'" if self.backend != "sounddevice" else "sounddevice/PortAudio nicht verfügbar"
+            reason = Msg("audio backend 'null'") if self.backend != "sounddevice" else Msg("sounddevice/PortAudio not available")
             self._start_null_clock(reason)
             return
         for name, columns in snap.device_map.items():
@@ -273,10 +328,10 @@ class AudioEngine:
                 log.error("Cannot open audio device '%s': %s", name, exc)
             self._streams.append(ds)
         if self._master is None:
-            self._start_null_clock("kein Audiogerät konnte geöffnet werden")
+            self._start_null_clock(Msg("no audio device could be opened"))
         else:
             failed = [s.name for s in self._streams if not s.open]
-            self.status_message = "läuft" if not failed else "läuft (Fehler: " + ", ".join(failed) + ")"
+            self.status_message = Msg("running") if not failed else Msg("running (errors: {devices})", devices=", ".join(failed))
 
     def _close_devices(self) -> None:
         self._stop_null_clock()
@@ -290,7 +345,7 @@ class AudioEngine:
             ds.open = False
         self._streams = []
         self._master = None
-        self.status_message = "gestoppt"
+        self.status_message = Msg("stopped")
 
     @staticmethod
     def _resolve_device(name: str) -> int | None:
@@ -303,7 +358,7 @@ class AudioEngine:
         for idx, dev in enumerate(devices):
             if dev["max_output_channels"] > 0 and name.lower() in dev["name"].lower():
                 return idx
-        raise RuntimeError(f"Gerät '{name}' nicht gefunden")
+        raise RuntimeError(Msg("Device '{name}' not found", name=name))
 
     @staticmethod
     def list_devices() -> list[dict[str, Any]]:
@@ -385,7 +440,7 @@ class AudioEngine:
             ds.underruns += 1
 
     def _start_null_clock(self, reason: str) -> None:
-        self.status_message = f"ohne Audioausgabe ({reason})"
+        self.status_message = Msg("without audio output ({reason})", reason=reason)
         log.warning("Audio engine runs without output: %s", reason)
         self._stop_null_clock()
         stop_flag = threading.Event()
@@ -436,20 +491,22 @@ class AudioEngine:
         x = np.empty((frames, len(INPUT_DEFS)), dtype=np.float32)
         for k, d in enumerate(INPUT_DEFS):
             x[:, k] = buses[d.bus][:, d.bus_channel]
-        for k, eq in enumerate(snap.input_eq):
-            if eq is not None:
-                x[:, k] = eq.process(x[:, k])
+        if snap.input_trims is not None:
+            x *= snap.input_trims
+        for k in range(x.shape[1]):
+            x[:, k] = _process_channel(x[:, k], snap.input_eq[k] if k < len(snap.input_eq) else None,
+                                       snap.input_dyn[k] if k < len(snap.input_dyn) else None,
+                                       k < len(snap.input_dyn_first) and snap.input_dyn_first[k])
         x *= snap.input_gains
         peak_in = np.abs(x).max(axis=0) if frames else np.zeros(len(INPUT_DEFS))
         y = x @ snap.matrix if n_out else np.zeros((frames, 0), dtype=np.float32)
-        for k, eq in enumerate(snap.output_eq):
-            if eq is not None:
-                y[:, k] = eq.process(y[:, k])
+        for k in range(n_out):
+            y[:, k] = _process_channel(y[:, k], snap.output_eq[k] if k < len(snap.output_eq) else None,
+                                       snap.output_dyn[k] if k < len(snap.output_dyn) else None,
+                                       k < len(snap.output_dyn_first) and snap.output_dyn_first[k])
         y *= snap.output_gains
         if self._test_tones:
-            t = (self._tone_phase + np.arange(frames)) / self.sample_rate
-            tone = (np.sin(2 * np.pi * TEST_TONE_HZ * t) * db_to_gain(TEST_TONE_DB)).astype(np.float32)
-            self._tone_phase = (self._tone_phase + frames) % self.sample_rate
+            tone = self._pink_block(frames)
             for k, oid in enumerate(snap.output_ids):
                 if oid in self._test_tones:
                     y[:, k] += tone
@@ -521,7 +578,16 @@ class AudioEngine:
         with self._lock:
             return [v.label for voices in self._voices.values() for v in voices if v.label and not v.stopped]
 
+    def _pink_block(self, frames: int) -> np.ndarray:
+        if self._pink is None:
+            self._pink = make_pink_noise(PINK_LOOP_SAMPLES, self.sample_rate)
+        idx = (self._tone_phase + np.arange(frames)) % len(self._pink)
+        self._tone_phase = int((self._tone_phase + frames) % len(self._pink))
+        return self._pink[idx]
+
     def set_test_tone(self, output_id: str, on: bool) -> None:
+        if on and self._pink is None:  # generate outside the audio callback (~50 ms on a Pi)
+            self._pink = make_pink_noise(PINK_LOOP_SAMPLES, self.sample_rate)
         with self._lock:
             if on:
                 self._test_tones.add(output_id)
@@ -544,7 +610,15 @@ class AudioEngine:
         if snap is not None:
             for k, oid in enumerate(snap.output_ids):
                 outputs[oid] = round(gain_to_db(float(pout[k])), 1) if k < len(pout) else MIN_DB
-        return {"inputs": inputs, "outputs": outputs}
+        gr: dict[str, float] = {}
+        if snap is not None:
+            for k, d in enumerate(snap.input_dyn):
+                if d is not None:
+                    gr["in:" + snap.input_ids[k]] = d.read_gr()
+            for k, d in enumerate(snap.output_dyn):
+                if d is not None:
+                    gr["out:" + snap.output_ids[k]] = d.read_gr()
+        return {"inputs": inputs, "outputs": outputs, "gr": gr}
 
     def status(self) -> dict[str, Any]:
         return {

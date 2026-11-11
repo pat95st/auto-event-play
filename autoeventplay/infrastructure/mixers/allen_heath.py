@@ -6,7 +6,7 @@
   Qu-7): everything as 14-bit NRPN with the SQ parameter map.
 
 The console's MIDI channel (Setup › Control › MIDI) must match the option
-"MIDI-Kanal". Qu classic accepts only one TCP-MIDI connection at a time.
+"MIDI channel". Qu classic accepts only one TCP-MIDI connection at a time.
 """
 
 from __future__ import annotations
@@ -18,11 +18,12 @@ from ...domain.levels import MIN_DB, interpolate_table, is_off
 from ...domain.model import MixerConfig, Target, TargetKind
 from .base import KindSpec, MixerDriver, MixerError, OptionSpec, register_driver
 from .transports import TcpClient
+from ...i18n import Msg
 
 log = logging.getLogger("aep.mixer.ah")
 K = TargetKind
 
-MIDI_CHANNEL_OPTION = OptionSpec("midi_channel", "MIDI-Kanal", "int", 1, help="Wie am Pult unter Setup › MIDI eingestellt (1–16).")
+MIDI_CHANNEL_OPTION = OptionSpec("midi_channel", "MIDI channel", "int", 1, help="As set on the console under Setup › MIDI (1–16).")
 
 
 class _AhBase(MixerDriver):
@@ -38,7 +39,7 @@ class _AhBase(MixerDriver):
     def n(self) -> int:
         ch = int(self.option("midi_channel", 1) or 1)
         if not 1 <= ch <= 16:
-            raise MixerError("MIDI-Kanal muss zwischen 1 und 16 liegen")
+            raise MixerError("MIDI channel must be between 1 and 16")
         return ch - 1
 
     def _on_data(self, data: bytes) -> None:  # pragma: no cover - overridden where needed
@@ -55,7 +56,7 @@ class _AhBase(MixerDriver):
 
     async def test(self) -> str:
         await self.connect()
-        return f"TCP-Verbindung zu {self.host}:{self.port} steht (MIDI-Kanal {self.n + 1})"
+        return Msg("TCP connection to {host}:{port} established (MIDI channel {ch})", host=self.host, port=self.port, ch=self.n + 1)
 
 
 # =========================================================================== Qu classic
@@ -81,21 +82,21 @@ class AllenHeathQuDriver(_AhBase):
     type_id = "ah_qu"
     display_name = "Allen & Heath Qu (Qu-16/24/32/Pac/SB)"
     kinds = [
-        KindSpec(K.CHANNEL, "Kanal", 32),
-        KindSpec(K.STEREO_IN, "Stereo-Eingang", 3, number_labels={1: "ST1", 2: "ST2", 3: "ST3"}),
+        KindSpec(K.CHANNEL, "Channel", 32),
+        KindSpec(K.STEREO_IN, "Stereo input", 3, number_labels={1: "ST1", 2: "ST2", 3: "ST3"}),
         KindSpec(K.FX_RETURN, "FX Return", 4),
         KindSpec(K.BUS, "Mix", 7, number_labels=QU_MIX_LABELS),
-        KindSpec(K.GROUP, "Gruppe", 4, number_labels={1: "Grp 1-2", 2: "Grp 3-4", 3: "Grp 5-6", 4: "Grp 7-8"}),
-        KindSpec(K.FX_SEND, "FX-Send", 4),
+        KindSpec(K.GROUP, "Group", 4, number_labels={1: "Grp 1-2", 2: "Grp 3-4", 3: "Grp 5-6", 4: "Grp 7-8"}),
+        KindSpec(K.FX_SEND, "FX send", 4),
         KindSpec(K.MATRIX, "Matrix", 2, number_labels={1: "Mtx 1-2", 2: "Mtx 3-4"}),
         KindSpec(K.MAIN, "Main LR", 1),
         KindSpec(K.DCA, "DCA", 4),
-        KindSpec(K.MUTE_GROUP, "Mute-Gruppe", 4, level=False),
-        KindSpec(K.SEND, "Kanal-Send", 32, mute=False, dest_label="Mix", dest_max=7, dest_labels=QU_MIX_LABELS),
+        KindSpec(K.MUTE_GROUP, "Mute group", 4, level=False),
+        KindSpec(K.SEND, "Channel send", 32, mute=False, dest_label="Mix", dest_max=7, dest_labels=QU_MIX_LABELS),
     ]
     option_specs = [MIDI_CHANNEL_OPTION]
-    notes = ("Qu-Firmware ≥ 1.9. Das Pult kann seinen Zustand nicht melden – „Zurücksetzen“ nutzt deshalb "
-             "die Gegenaktion bzw. den eingetragenen Rücksetz-Pegel.")
+    notes = ("Qu firmware ≥ 1.9. The console cannot report its state – \"restore\" therefore uses "
+             "the opposite action or the configured fallback level.")
 
     _ch_base = {K.CHANNEL: 0x20, K.STEREO_IN: 0x40, K.FX_RETURN: 0x08, K.BUS: 0x60, K.GROUP: 0x68,
                 K.FX_SEND: 0x00, K.MATRIX: 0x6C, K.DCA: 0x10, K.MUTE_GROUP: 0x50}
@@ -200,30 +201,30 @@ class AllenHeathSqDriver(_AhBase):
     can_query = True
     option_specs = [
         MIDI_CHANNEL_OPTION,
-        OptionSpec("model", "Modell", "select", "sq", choices=[("sq", "SQ-5 / SQ-6 / SQ-7"), ("qu567", "Qu-5 / Qu-6 / Qu-7 (neue Qu-Serie)")]),
-        OptionSpec("fader_law", "NRPN-Faderkurve", "select", "audio",
+        OptionSpec("model", "Model", "select", "sq", choices=[("sq", "SQ-5 / SQ-6 / SQ-7"), ("qu567", "Qu-5 / Qu-6 / Qu-7 (new Qu series)")]),
+        OptionSpec("fader_law", "NRPN fader law", "select", "audio",
                    choices=[("audio", "Audio Taper"), ("linear", "Linear Taper")],
-                   help="Muss zur Einstellung „NRPN Fader Law“ am Pult passen."),
+                   help="Must match the \"NRPN Fader Law\" setting on the console."),
     ]
-    notes = "SQ-Firmware ≥ 1.5 bzw. Qu-5/6/7. Pegel und Mutes können abgefragt werden (exaktes Zurücksetzen)."
+    notes = "SQ firmware ≥ 1.5 or Qu-5/6/7. Levels and mutes can be queried (exact restore)."
 
     @classmethod
     def kinds_for(cls, config: MixerConfig | None) -> list[KindSpec]:
         model = SQ_MODELS.get((config.options.get("model") if config else None) or "sq", SQ_MODELS["sq"])
         kinds = [
-            KindSpec(K.CHANNEL, "Kanal", model["inputs"]),
-            KindSpec(K.GROUP, "Gruppe", model["groups"]),
+            KindSpec(K.CHANNEL, "Channel", model["inputs"]),
+            KindSpec(K.GROUP, "Group", model["groups"]),
             KindSpec(K.FX_RETURN, "FX Return", model["fx_returns"]),
             KindSpec(K.BUS, "Mix/Aux", model["mixes"]),
-            KindSpec(K.FX_SEND, "FX-Send", 4),
+            KindSpec(K.FX_SEND, "FX send", 4),
             KindSpec(K.MATRIX, "Matrix", model["matrices"]),
             KindSpec(K.MAIN, "Main LR", 1),
             KindSpec(K.DCA, "DCA", 8),
-            KindSpec(K.MUTE_GROUP, "Mute-Gruppe", 8, level=False),
-            KindSpec(K.SEND, "Kanal-Send", model["inputs"], mute=False, dest_label="Mix", dest_max=model["mixes"]),
+            KindSpec(K.MUTE_GROUP, "Mute group", 8, level=False),
+            KindSpec(K.SEND, "Channel send", model["inputs"], mute=False, dest_label="Mix", dest_max=model["mixes"]),
         ]
         if model["stereo"]:
-            kinds.insert(1, KindSpec(K.STEREO_IN, "Stereo-Eingang", 3, number_labels={1: "ST1", 2: "ST2", 3: "USB"}))
+            kinds.insert(1, KindSpec(K.STEREO_IN, "Stereo input", 3, number_labels={1: "ST1", 2: "ST2", 3: "USB"}))
         return kinds
 
     def __init__(self, config: MixerConfig):
@@ -260,7 +261,7 @@ class AllenHeathSqDriver(_AhBase):
             return 0x02, n
         if k == K.MUTE_GROUP:
             return 0x04, n
-        raise MixerError(f"nicht unterstützt: {k.value}")
+        raise MixerError(Msg("not supported: {kind}", kind=k.value))
 
     def level_param(self, t: Target) -> tuple[int, int]:
         n = (t.number or 1) - 1
@@ -286,7 +287,7 @@ class AllenHeathSqDriver(_AhBase):
         if k == K.SEND:
             p = (0x40 << 7 | 0x44) + n * 12 + ((t.dest or 1) - 1)
             return p >> 7, p & 0x7F
-        raise MixerError(f"nicht unterstützt: {k.value}")
+        raise MixerError(Msg("not supported: {kind}", kind=k.value))
 
     def _nrpn(self, msb: int, lsb: int, vc: int, vf: int) -> list[int]:
         b = 0xB0 | self.n
@@ -407,7 +408,7 @@ class _AhDliveBase(_AhBase):
     platform = "dlive"
     can_query = True
     option_specs = [OptionSpec("midi_channel", "MIDI-Basiskanal", "int", 12,
-                               help="Wie am Pult unter Utility › Control › MIDI (belegt Basiskanal bis Basiskanal + 4).")]
+                               help="As set on the console under Utility › Control › MIDI (uses base channel to base channel + 4).")]
 
     @classmethod
     def kinds_for(cls, config: MixerConfig | None) -> list[KindSpec]:
@@ -418,16 +419,16 @@ class _AhDliveBase(_AhBase):
         mf, sf = L["mono_fx_send"][2], L["stereo_fx_send"][2]
         aux_labels = _mono_stereo_labels(ma, sa, "Aux", "St-Aux")
         return [
-            KindSpec(K.CHANNEL, "Kanal", L["inputs"][2]),
-            KindSpec(K.GROUP, "Gruppe", mg + sg, number_labels=_mono_stereo_labels(mg, sg, "Grp", "St-Grp")),
+            KindSpec(K.CHANNEL, "Channel", L["inputs"][2]),
+            KindSpec(K.GROUP, "Group", mg + sg, number_labels=_mono_stereo_labels(mg, sg, "Grp", "St-Grp")),
             KindSpec(K.BUS, "Aux", ma + sa, number_labels=aux_labels),
             KindSpec(K.MATRIX, "Matrix", mm + sm, number_labels=_mono_stereo_labels(mm, sm, "Mtx", "St-Mtx")),
-            KindSpec(K.FX_SEND, "FX-Send", mf + sf, number_labels=_mono_stereo_labels(mf, sf, "FX", "St-FX")),
+            KindSpec(K.FX_SEND, "FX send", mf + sf, number_labels=_mono_stereo_labels(mf, sf, "FX", "St-FX")),
             KindSpec(K.FX_RETURN, "FX Return", L["fx_return"][2]),
             KindSpec(K.MAIN, "Main", L["main"][2]),
             KindSpec(K.DCA, "DCA", L["dca"][2]),
-            KindSpec(K.MUTE_GROUP, "Mute-Gruppe", L["mute_group"][2], level=False),
-            KindSpec(K.SEND, "Kanal → Aux", L["inputs"][2], mute=False, dest_label="Aux", dest_max=ma + sa, dest_labels=aux_labels),
+            KindSpec(K.MUTE_GROUP, "Mute group", L["mute_group"][2], level=False),
+            KindSpec(K.SEND, "Channel → aux", L["inputs"][2], mute=False, dest_label="Aux", dest_max=ma + sa, dest_labels=aux_labels),
         ]
 
     def __init__(self, config: MixerConfig):
@@ -444,7 +445,7 @@ class _AhDliveBase(_AhBase):
             return off, first + n - 1
         off, first, count_st = L[key_stereo]
         if n - count > count_st:
-            raise MixerError("Nummer außerhalb des Bereichs")
+            raise MixerError("Number out of range")
         return off, first + (n - count) - 1
 
     def address(self, target: Target) -> tuple[int, int]:
@@ -467,10 +468,10 @@ class _AhDliveBase(_AhBase):
             off, first, _ = L[{K.FX_RETURN: "fx_return", K.MAIN: "main", K.DCA: "dca", K.MUTE_GROUP: "mute_group"}[k]]
             ch = (off, first + n - 1)
         else:
-            raise MixerError(f"nicht unterstützt: {k.value}")
+            raise MixerError(Msg("not supported: {kind}", kind=k.value))
         midi = self.n + ch[0]
         if midi > 15:
-            raise MixerError("MIDI-Basiskanal zu hoch (Basiskanal + 4 muss ≤ 16 sein)")
+            raise MixerError("MIDI base channel too high (base channel + 4 must be ≤ 16)")
         return midi, ch[1]
 
     def mute_bytes(self, target: Target, muted: bool) -> list[int]:
@@ -562,8 +563,8 @@ class AllenHeathDliveDriver(_AhDliveBase):
     type_id = "ah_dlive"
     display_name = "Allen & Heath dLive"
     platform = "dlive"
-    notes = ("MIDI über TCP (Port 51325 unverschlüsselt) an Surface oder MixRack, Firmware ≥ 1.9. Belegt 5 MIDI-Kanäle ab dem "
-             "Basiskanal. Aux/Gruppen/Matrix: erst Mono-, dann Stereo-Busse nummeriert. Mutes und Fader abfragbar.")
+    notes = ("MIDI over TCP (port 51325 unencrypted) to surface or MixRack, firmware ≥ 1.9. Uses 5 MIDI channels starting at the "
+             "base channel. Aux/groups/matrix: mono buses first, then stereo buses. Mutes and faders can be queried.")
 
 
 @register_driver
@@ -572,8 +573,8 @@ class AllenHeathAvantisDriver(_AhDliveBase):
     display_name = "Allen & Heath Avantis"
     platform = "avantis"
     can_query = False  # the Avantis protocol documents no get messages
-    notes = ("MIDI über TCP (Port 51325), Firmware ≥ 2.0. Belegt 5 MIDI-Kanäle ab dem Basiskanal (Utility › Control › MIDI). "
-             "Aux/Gruppen/Matrix: erst Mono-, dann Stereo-Busse nummeriert.")
+    notes = ("MIDI over TCP (port 51325), firmware ≥ 2.0. Uses 5 MIDI channels starting at the base channel (Utility › Control › MIDI). "
+             "Aux/groups/matrix: mono buses first, then stereo buses.")
 
     async def get_mute(self, target: Target) -> bool | None:  # noqa: D102
         return None

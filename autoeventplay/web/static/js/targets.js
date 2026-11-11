@@ -2,15 +2,16 @@
 (function () {
   "use strict";
   const AEP = window.AEP;
+  const T = AEP.t;
 
   AEP.targetPicker = function (container, kinds, value) {
     value = value || {};
     container.innerHTML = `
       <div class="row g-2">
-        <div class="col-5"><label class="form-label">Ziel</label><select class="form-select form-select-sm" data-f="kind"></select></div>
-        <div class="col-4" data-wrap="number"><label class="form-label" data-l="number">Nr.</label><select class="form-select form-select-sm" data-f="number"></select></div>
-        <div class="col-3" data-wrap="dest" hidden><label class="form-label" data-l="dest">Ziel-Bus</label><select class="form-select form-select-sm" data-f="dest"></select></div>
-        <div class="col-7" data-wrap="raw" hidden><label class="form-label">Adresse / Pfad</label><input class="form-control form-control-sm mono" data-f="raw" placeholder="/ch/01/mix/on"></div>
+        <div class="col-5"><label class="form-label">${AEP.esc(T("Target"))}</label><select class="form-select form-select-sm" data-f="kind"></select></div>
+        <div class="col-4" data-wrap="number"><label class="form-label" data-l="number">${AEP.esc(T("No."))}</label><select class="form-select form-select-sm" data-f="number"></select></div>
+        <div class="col-3" data-wrap="dest" hidden><label class="form-label" data-l="dest">${AEP.esc(T("Destination bus"))}</label><select class="form-select form-select-sm" data-f="dest"></select></div>
+        <div class="col-7" data-wrap="raw" hidden><label class="form-label">${AEP.esc(T("Address / path"))}</label><input class="form-control form-control-sm mono" data-f="raw" placeholder="/ch/01/mix/on"></div>
       </div>`;
     const $ = (f) => container.querySelector(`[data-f="${f}"]`);
     const wrap = (f) => container.querySelector(`[data-wrap="${f}"]`);
@@ -28,11 +29,11 @@
       wrap("raw").hidden = !isRaw;
       wrap("number").hidden = isRaw || (k.max <= 1);
       wrap("dest").hidden = k.kind !== "send";
-      container.querySelector('[data-l="number"]').textContent = k.kind === "send" ? "Kanal" : "Nr.";
-      $("number").innerHTML = options(k.max, k.number_labels, k.kind === "send" ? "Kanal" : k.label);
+      container.querySelector('[data-l="number"]').textContent = k.kind === "send" ? T("Channel") : T("No.");
+      $("number").innerHTML = options(k.max, k.number_labels, k.kind === "send" ? T("Channel") : k.label);
       if (k.kind === "send") {
-        container.querySelector('[data-l="dest"]').textContent = k.dest_label || "Ziel";
-        $("dest").innerHTML = options(k.dest_max || 1, k.dest_labels, k.dest_label || "Bus");
+        container.querySelector('[data-l="dest"]').textContent = k.dest_label || T("Target");
+        $("dest").innerHTML = options(k.dest_max || 1, k.dest_labels, k.dest_label || T("Bus"));
       }
       if (first) {
         if (value.number) $("number").value = String(value.number);

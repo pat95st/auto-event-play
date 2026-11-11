@@ -49,6 +49,27 @@ class SetChannelEq(Command):
 
 
 @dataclass
+class SetChannelDynamics(Command):
+    channel_type: str  # input | output
+    channel_id: str
+    dyn: dict[str, Any]
+
+
+@dataclass
+class SetInputTrim(Command):
+    input_id: str
+    trim_db: float
+
+
+@dataclass
+class SetChannelOrder(Command):
+    """Order of EQ and compressor in a channel: "eq_dyn" or "dyn_eq"."""
+    channel_type: str  # input | output
+    channel_id: str
+    order: str
+
+
+@dataclass
 class SetCrosspoint(Command):
     input_id: str
     output_id: str
@@ -173,6 +194,13 @@ class PlayLocal(Command):
     text: str | None = None
     language: str | None = None
     with_gong: bool = False
+
+
+# ---- user interface
+
+@dataclass
+class SetLanguage(Command):
+    language: str  # en | de
 
 
 # ---- users

@@ -20,6 +20,7 @@ from ...domain.levels import is_off
 from ...domain.model import MixerConfig, Target, TargetKind
 from .base import KindSpec, MixerDriver, MixerError, OptionSpec, register_driver
 from .transports import TcpClient
+from ...i18n import Msg
 
 log = logging.getLogger("aep.mixer.yamaha")
 K = TargetKind
@@ -87,7 +88,7 @@ class _YamahaRcpBase(MixerDriver):
     @classmethod
     def kinds_for(cls, config: MixerConfig | None) -> list[KindSpec]:
         m = cls.model_of(config)
-        kinds = [KindSpec(K.CHANNEL, "Kanal", m["in"])]
+        kinds = [KindSpec(K.CHANNEL, "Channel", m["in"])]
         if m["stin"]:
             kinds.append(KindSpec(K.STEREO_IN, "ST IN", m["stin"]))
         if m["fxrtn"]:
@@ -102,9 +103,9 @@ class _YamahaRcpBase(MixerDriver):
             main_labels[m["st"] + 1] = "Mono"
         kinds.append(KindSpec(K.MAIN, "Master", m["st"] + m["mono"], number_labels=main_labels))
         kinds.append(KindSpec(K.DCA, "DCA", m["dca"]))
-        kinds.append(KindSpec(K.MUTE_GROUP, "Mute-Gruppe", m["mute"], level=False))
-        kinds.append(KindSpec(K.SEND, "Kanal → Mix", m["in"], dest_label="Mix", dest_max=m["mix"]))
-        kinds.append(KindSpec(K.RAW, "Roh-Adresse (z. B. MIXER:Current/InCh/Fader/On 4 0)"))
+        kinds.append(KindSpec(K.MUTE_GROUP, "Mute group", m["mute"], level=False))
+        kinds.append(KindSpec(K.SEND, "Channel → mix", m["in"], dest_label="Mix", dest_max=m["mix"]))
+        kinds.append(KindSpec(K.RAW, "Raw address (e.g. MIXER:Current/InCh/Fader/On 4 0)"))
         return kinds
 
     def __init__(self, config: MixerConfig):
@@ -123,7 +124,7 @@ class _YamahaRcpBase(MixerDriver):
         if k == K.RAW:
             parts = (target.raw or "").split()
             if not parts or not parts[0].startswith("MIXER:"):
-                raise MixerError("Roh-Adresse z. B. „MIXER:Current/InCh/Fader/On 4 0“")
+                raise MixerError("Raw address e.g. \"MIXER:Current/InCh/Fader/On 4 0\"")
             x = int(parts[1]) if len(parts) > 1 else 0
             y = int(parts[2]) if len(parts) > 2 else 0
             return parts[0], x, y, parts[0].endswith("/On")
@@ -141,7 +142,7 @@ class _YamahaRcpBase(MixerDriver):
             base = {K.CHANNEL: "MIXER:Current/InCh", K.STEREO_IN: "MIXER:Current/StInCh", K.FX_RETURN: "MIXER:Current/FxRtnCh",
                     K.BUS: "MIXER:Current/Mix", K.MATRIX: "MIXER:Current/Mtrx", K.DCA: "MIXER:Current/DCA"}.get(k)
             if base is None:
-                raise MixerError(f"nicht unterstützt: {k.value}")
+                raise MixerError(Msg("not supported: {kind}", kind=k.value))
             x = n
         leaf = "Fader/On" if which == "mute" else "Fader/Level"
         return f"{base}/{leaf}", x, 0, which == "mute"
@@ -196,8 +197,8 @@ class _YamahaRcpBase(MixerDriver):
         await self.connect()
         value = await self._get("MIXER:Current/InCh/Fader/Level", 0, 0, 1.5)
         if value is None:
-            raise MixerError("Keine Antwort auf RCP-Abfrage (Port 49280, Firmware mit RCP-Unterstützung?)")
-        return f"Verbunden – Kanal 1 steht auf {value_to_db(int(value)):.1f} dB"
+            raise MixerError("No reply to RCP query (port 49280, firmware with RCP support?)")
+        return Msg("Connected – channel 1 is at {db} dB", db=f"{value_to_db(int(value)):.1f}")
 
     async def set_mute(self, target: Target, muted: bool) -> None:
         self.validate(target, "mute")
@@ -230,19 +231,19 @@ def _make(series: str, type_id: str, name: str, notes: str) -> type[_YamahaRcpBa
         "series": series,
         "notes": notes,
     })
-    cls.option_specs = [OptionSpec("model", "Modell", "select", SERIES_MODELS[series][0], choices=cls.model_choices())]
+    cls.option_specs = [OptionSpec("model", "Model", "select", SERIES_MODELS[series][0], choices=cls.model_choices())]
     return register_driver(cls)
 
 
 YamahaTFDriver = _make("yamaha_tf", "yamaha_tf", "Yamaha TF (TF1/TF3/TF5/TF-RACK)",
-                       "RCP über TCP 49280. Die TF-Serie hat keine Matrix-Busse; Pegel als dB × 100, „ON“ = nicht gemutet.")
+                       "RCP over TCP 49280. The TF series has no matrix buses; levels as dB × 100, \"ON\" = not muted.")
 YamahaQLDriver = _make("yamaha_ql", "yamaha_ql", "Yamaha QL (QL1/QL5)",
-                       "RCP über TCP 49280 (Setup › Network). Stereo- und Mono-Master, 16 Mix, 8 Matrix, 16 DCA.")
+                       "RCP over TCP 49280 (Setup › Network). Stereo and mono master, 16 mix, 8 matrix, 16 DCA.")
 YamahaCLDriver = _make("yamaha_cl", "yamaha_cl", "Yamaha CL (CL1/CL3/CL5)",
-                       "RCP über TCP 49280 (Setup › Network). Stereo- und Mono-Master, 24 Mix, 8 Matrix, 16 DCA.")
+                       "RCP over TCP 49280 (Setup › Network). Stereo and mono master, 24 mix, 8 matrix, 16 DCA.")
 YamahaDM3Driver = _make("yamaha_dm3", "yamaha_dm3", "Yamaha DM3",
-                        "RCP über TCP 49280 (Firmware mit RCP-Unterstützung). 16 Mono + 1 Stereo-Eingang, 6 Mix, 2 Matrix.")
+                        "RCP over TCP 49280 (firmware with RCP support). 16 mono + 1 stereo input, 6 mix, 2 matrix.")
 YamahaDM5Driver = _make("yamaha_dm5", "yamaha_dm5", "Yamaha DM5 / DM5 Compact",
-                        "DM5 basiert auf der DM7-Plattform: RCP über TCP 49280. Stereo A/B als Master 1/2.")
+                        "The DM5 is based on the DM7 platform: RCP over TCP 49280. Stereo A/B as master 1/2.")
 YamahaDM7Driver = _make("yamaha_dm7", "yamaha_dm7", "Yamaha DM7 / DM7 Compact",
-                        "RCP über TCP 49280. Stereo A/B als Master 1/2, 48 Mix, 12 Matrix, 24 DCA.")
+                        "RCP over TCP 49280. Stereo A/B as master 1/2, 48 mix, 12 matrix, 24 DCA.")

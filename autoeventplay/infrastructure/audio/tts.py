@@ -8,6 +8,8 @@ import shutil
 import subprocess
 import uuid
 from dataclasses import dataclass
+
+from ...i18n import Msg
 from pathlib import Path
 
 log = logging.getLogger("aep.tts")
@@ -99,7 +101,7 @@ class TtsService:
     def synthesize(self, text: str, language: str | None = None, voice: str | None = None, rate: float = 1.0) -> Path:
         text = (text or "").strip()
         if not text:
-            raise TtsError("Kein Text für die Durchsage")
+            raise TtsError(Msg("No text for the announcement"))
         rate = max(0.5, min(2.0, float(rate or 1.0)))
         self.tmp_dir.mkdir(parents=True, exist_ok=True)
         out = self.tmp_dir / f"tts-{uuid.uuid4().hex}.wav"
@@ -124,7 +126,7 @@ class TtsService:
                     return out
                 errors.append("piper: " + proc.stderr.decode("utf-8", "replace").strip()[-300:])
             else:
-                errors.append("piper: " + ("keine passende Stimme installiert" if piper else "nicht installiert"))
+                errors.append("piper: " + ("no matching voice installed" if piper else "not installed"))
         if engine in ("auto", "espeak"):
             esp = shutil.which(self.settings.espeak_binary)
             if esp:
@@ -139,8 +141,8 @@ class TtsService:
                     return out
                 errors.append("espeak-ng: " + proc.stderr.decode("utf-8", "replace").strip()[-200:])
             else:
-                errors.append("espeak-ng: nicht installiert")
-        raise TtsError("Sprachausgabe fehlgeschlagen (" + "; ".join(errors) + ")")
+                errors.append("espeak-ng: not installed")
+        raise TtsError(Msg("Text-to-speech failed ({errors})", errors="; ".join(errors)))
 
     async def synthesize_async(self, text: str, language: str | None = None, voice: str | None = None, rate: float = 1.0) -> Path:
         return await asyncio.to_thread(self.synthesize, text, language, voice, rate)

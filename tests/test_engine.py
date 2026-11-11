@@ -68,4 +68,21 @@ def test_test_tone():
     e.set_test_tone("o2", True)
     out = e.render(4800)
     assert np.abs(out[:, 0]).max() == 0.0
-    assert np.abs(out[:, 1]).max() == pytest.approx(10 ** (-18 / 20), rel=0.02)
+    # pink noise at -18 dBFS RMS
+    assert 20 * np.log10(np.sqrt(np.mean(out[:, 1] ** 2))) == pytest.approx(-18, abs=1.5)
+
+
+def test_pink_noise_spectrum_and_loop():
+    from autoeventplay.infrastructure.audio.engine import make_pink_noise
+    sr, n = 48000, 1 << 17
+    x = make_pink_noise(n, sr).astype(np.float64)
+    assert 20 * np.log10(np.sqrt(np.mean(x ** 2))) == pytest.approx(-18, abs=0.01)
+    spec = np.abs(np.fft.rfft(x)) ** 2
+    f = np.fft.rfftfreq(n, 1 / sr)
+    band = lambda lo: spec[(f >= lo) & (f < 2 * lo)].sum()  # noqa: E731 - energy per octave
+    # pink: equal energy per octave (white noise would rise by 3 dB per octave)
+    for lo in (125, 500, 2000):
+        assert 10 * np.log10(band(2 * lo) / band(lo)) == pytest.approx(0, abs=1.0)
+    # seamless loop: the jump across the seam is no larger than a normal sample-to-sample step
+    steps = np.abs(np.diff(x))
+    assert abs(x[0] - x[-1]) < np.percentile(steps, 99.9)

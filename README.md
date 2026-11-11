@@ -1,131 +1,205 @@
 # AutoEventPlay
 
-Lokaler Audio-Player für Veranstaltungen auf dem Raspberry Pi. AutoEventPlay koppelt sich mit einer
-[eventrentmanager](../eventrentmanager)-Instanz, holt dort Jingles, Audio-Dateien, Text-Durchsagen und
-aufgenommene Durchsagen ab, spielt sie über die Audio-Adapter des Pi aus und steuert dabei die
-Mischpulte in der Signalkette (Kanäle entmuten, Pegel setzen, danach zurücksetzen).
+Local audio player for events, running on a Raspberry Pi. AutoEventPlay pairs with an
+[eventrentmanager](../eventrentmanager) instance and fetches jingles, audio files, text announcements and
+recorded announcements from it. It plays them through the Pi's audio adapters and controls the mixing
+consoles further down the signal chain while doing so: it unmutes channels, sets levels and restores them
+afterwards.
 
-![Mischpult-Oberfläche](docs/screenshot-mixer.png)
+The web interface is in **English** by default and is also available in **German** (switch in the top
+bar or under *System › Language*).
+
+![Mixer view](docs/screenshot-mixer.png)
 
 ![Equalizer](docs/screenshot-eq.png)
 
-## Funktionen
+![Compressor](docs/screenshot-dyn.png)
 
-- **Kopplung per 6-stelligem Code** an eine Veranstaltung im eventrentmanager (alternativ Geräte-Token).
-- **Lokaler Cache** aller Dateien der Veranstaltung – Abspielen funktioniert auch bei wackeligem Netz sofort.
-- **Drei Quellen:** Medien (stereo, L und R getrennt routbar), automatische Durchsage (TTS, offline mit
-  Piper bzw. espeak-ng) und aufgenommene Durchsagen – jeweils mit Gong.
-- **Routing-Matrix** Quellen × Ausgänge, beliebig viele Ausgänge auf mehreren Audio-Adaptern gleichzeitig.
-- **Fader** für jeden Ein- und Ausgang von −∞ bis +10 dB (Konsolen-Faderkurve), Mute, **Live-Meter**,
-  Testton je Ausgang.
-- **Equalizer** auf jedem Ein- und Ausgang: 4 vollparametrische Bänder (Glocke, Low-/High-Shelf, Frequenz,
-  Gain ±18 dB, Q) plus Low-Cut und High-Cut (12/18/24 dB/Okt) – mit Frequenzgang-Kurve und ziehbaren Bandpunkten.
-- **Pultsteuerung („Cues“):** Je Abspiel-Event (Auftragsart, optional bestimmte Datei oder Titel) Aktionen
-  vor dem Abspielen (entmuten / muten / Pegel, optional mit Fade) mit Checkbox „danach zurücksetzen“ sowie
-  Aktionen nach dem Wiedergabeende. Mehrere Pulte, auch gleichen Typs.
-- **Unterstützte Pulte:** Behringer WING · Behringer X32 / Midas M32 · Behringer X-AIR / Midas M-AIR ·
-  Yamaha TF, QL, CL, DM3, DM5, DM7 · Allen & Heath Qu (alt), SQ, Qu-5/6/7, Avantis, dLive ·
-  Soundcraft Ui12/16/24R · Soundcraft Si und Vi (experimentell) ·
-  generisches OSC-Pult (Adressen per JSON, ohne Programmieren).
-- **Logs** live in der Weboberfläche, Download der Logdateien.
-- **Login** mit lokalem Administrator-Konto (beim ersten Aufruf angelegt).
+## Features
 
-## Installation auf dem Raspberry Pi
+- **Pairing by 6-digit code** with an event in eventrentmanager. A device token works as an alternative.
+- **Local cache** of all files of the event, so playback starts immediately even on a shaky network.
+- **Three sources:**
+  - media (stereo, with L and R routable separately)
+  - automatic announcements (TTS, offline with Piper or espeak-ng)
+  - recorded announcements
 
-Getestet für Raspberry Pi OS Bookworm (64-bit) auf Pi 4/5. Der Pi braucht während der Installation Internet.
+  Each source can play with a gong.
+- **Routing matrix** of sources × outputs. You can have any number of outputs on several audio adapters at the same time.
+- **Trim** on every input (−24 … +24 dB, rotary knob) to match the input level before EQ and compressor.
+- **Faders** for every input and output from −∞ to +10 dB (console fader law), plus mute, **live meters**
+  and a pink-noise test signal (−18 dBFS RMS) per output.
+- **Equalizer** on every input and output:
+  - 4 fully parametric bands (bell, low/high shelf, frequency, gain ±18 dB, Q)
+  - low cut and high cut (12/18/24 dB/oct)
+  - response curve with draggable band points
+- **Compressor** on every input and output:
+  - threshold, ratio (up to 20:1 ≈ limiter), attack, release, soft knee and make-up gain
+  - transfer curve with the live level dot, gain-reduction meter in the editor and on every channel strip
+  - presets for speech, music and limiter
+- **EQ/compressor order** per channel: EQ → compressor (default) or compressor → EQ, swapped with the ⇅
+  button between the EQ and DYN buttons. The order of the buttons on the strip shows the signal order.
+- **Console control ("cues")** per playback event, matched by job type and optionally by a specific file or title:
+  - actions before playback: unmute / mute / level, optionally with a fade
+  - a "restore afterwards" checkbox
+  - actions after playback has ended
+
+  Several consoles can be controlled at once, including several of the same type.
+- **Supported consoles:**
+  - Behringer WING
+  - Behringer X32 / Midas M32
+  - Behringer X-AIR / Midas M-AIR
+  - Yamaha TF, QL, CL, DM3, DM5, DM7
+  - Yamaha LS9 (experimental)
+  - Allen & Heath Qu (classic), SQ, Qu-5/6/7, Avantis, dLive
+  - Mackie DL16S / DL32S / DL32R (experimental)
+  - Soundcraft Ui12/16/24R
+  - Soundcraft Si and Vi (experimental)
+  - a generic OSC console (addresses as JSON, no programming)
+- **Logs** live in the web interface, with download of the log files.
+- **Login** with a local administrator account, created on first access.
+- **Languages:** English (default) and German.
+
+## Installation on the Raspberry Pi
+
+Tested on Raspberry Pi OS Bookworm (64-bit) on a Pi 4/5. The Pi needs internet access during installation.
 
 ```bash
-git clone <dieses-repo> auto-event-play
+git clone <this-repo> auto-event-play
 cd auto-event-play
 sudo ./deploy/install.sh
 ```
 
-Das Skript installiert Systempakete (PortAudio, ffmpeg, espeak-ng), legt den Dienstbenutzer `aep` an,
-richtet eine Python-Umgebung in `/opt/autoeventplay` ein, lädt Bootstrap (für den Offline-Betrieb) sowie
-deutsche und englische Piper-Stimmen und startet den systemd-Dienst `autoeventplay`.
+The script:
+- installs system packages (PortAudio, ffmpeg, espeak-ng)
+- creates the service user `aep`
+- sets up a Python environment in `/opt/autoeventplay`
+- downloads Bootstrap (for offline use) and German and English Piper voices
+- starts the systemd service `autoeventplay`
 
-Danach im Browser `http://<pi-adresse>:8080/` öffnen, Administrator anlegen und unter **Instanz** die URL
-des eventrentmanagers eintragen und den Kopplungs-Code eingeben.
+Then:
+1. Open `http://<pi-address>:8080/` in a browser.
+2. Create the administrator account.
+3. Under **Instance**, enter the eventrentmanager URL and the pairing code.
 
-Konfiguration des Dienstes: `/etc/autoeventplay.env` (Port, Datenverzeichnis, Log-Level).
-Daten (SQLite-Datenbank, Datei-Cache, Logs, Stimmen): `/var/lib/autoeventplay`.
+- Service configuration: `/etc/autoeventplay.env` (port, data directory, log level).
+- Data (SQLite database, file cache, logs, voices): `/var/lib/autoeventplay`.
 
 ```bash
-sudo systemctl status autoeventplay      # Status
-journalctl -u autoeventplay -f           # Live-Log
+sudo systemctl status autoeventplay      # status
+journalctl -u autoeventplay -f           # live log
 ```
 
-## Entwicklung
+## Development
 
 ```bash
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements-dev.txt
-./scripts/fetch-vendor.sh                # optional: Bootstrap lokal
-AEP_DATA_DIR=./data AEP_AUDIO_BACKEND=null python -m autoeventplay
+./scripts/fetch-vendor.sh                # optional: Bootstrap locally
+AEP_DATA_DIR=./data python -m autoeventplay
 pytest
 ```
 
-Mit `AEP_AUDIO_BACKEND=null` läuft die Audio-Engine ohne Hardware (Meter und Routing funktionieren trotzdem).
+This plays through the computer's sound output (on macOS the `sounddevice` wheel brings its own PortAudio;
+on Linux install `libportaudio2`). The status pill in the top bar shows how many audio devices are open;
+details are under *Audio › Detected audio devices*.
 
-## Einrichtung im Betrieb
+`AEP_AUDIO_BACKEND=null` runs the audio engine **without any sound output** (for CI or a machine without
+audio). Meters and routing still work, but nothing reaches the speakers.
 
-1. **Audio › Ausgänge:** physische Kanäle der Audio-Adapter anlegen (z. B. „FOH Musik“ = USB-Interface Kanal 1).
-2. **Routing:** Quellen auf Ausgänge schalten, z. B. Medien L+R → „FOH Musik“ (Mono-Summe),
-   TTS + Aufnahme → „FOH Sprache“.
-3. **Pulte:** Mischpulte mit IP-Adresse anlegen und mit „Testen“ prüfen.
-4. **Cues:** z. B. „Bei Sprache: Kanal 31 entmuten, 0 dB, danach zurücksetzen“.
-5. **Mischpult:** Pegel einstellen, mit den Testfunktionen vorhören.
+### Translations
 
-## Pulte – Hinweise
+English is the source language. To translate:
+- **Python:** use `Msg("Channel {n} does not exist", n=5)` for messages shown to users, or `t("…")` for
+  immediate translation.
+- **Templates:** use `{{ _("…") }}`.
+- **JavaScript:** use `AEP.t("…", {params})`.
 
-| Pult | Protokoll | Port | Werte abfragbar |
+The German catalog is `autoeventplay/i18n/de.py` (English text → German). Texts missing from the catalog
+are shown in English. `tests/test_i18n_web.py` renders every page in both languages.
+
+## Setup in operation
+
+1. **Audio › Outputs:** create the physical channels of the audio adapters (e.g. "FOH music" = USB interface channel 1).
+2. **Routing:** route sources to outputs. For example:
+   - Media L+R → "FOH music" (mono sum)
+   - TTS + Recording → "FOH speech"
+3. **Consoles:** add the consoles with their IP addresses and check them with "Test".
+4. **Cues:** e.g. "For speech: unmute channel 31, 0 dB, restore afterwards".
+5. **Mixer:** set trim, levels, EQ and compressor (and their order), and preview with the test functions.
+
+## Consoles – notes
+
+| Console | Protocol | Port | Values queryable |
 |---|---|---|---|
-| Behringer WING (alle Modelle) | OSC/UDP | 2223 | ja |
-| Behringer X32 / Midas M32 (alle Modelle) | OSC/UDP | 10023 | ja |
-| Behringer X-AIR / Midas M-AIR | OSC/UDP | 10024 | ja |
-| Yamaha TF, QL, CL, DM3, DM5, DM7 | RCP (Text über TCP) | 49280 | ja |
-| Allen & Heath Qu-16/24/32/Pac/SB | MIDI über TCP | 51325 | nein |
-| Allen & Heath SQ-5/6/7, Qu-5/6/7 | MIDI über TCP (NRPN) | 51325 | ja |
-| Allen & Heath dLive | MIDI über TCP | 51325 | ja |
-| Allen & Heath Avantis | MIDI über TCP | 51325 | nein |
-| Soundcraft Ui12/Ui16/Ui24R | WebSocket (wie die Ui-Weboberfläche) | 80 | ja |
-| Soundcraft Si / Vi (experimentell) | HiQnet über TCP | 3804 | ja (mit Adress-Map) |
+| Behringer WING (all models) | OSC/UDP | 2223 | yes |
+| Behringer X32 / Midas M32 (all models) | OSC/UDP | 10023 | yes |
+| Behringer X-AIR / Midas M-AIR | OSC/UDP | 10024 | yes |
+| Yamaha TF, QL, CL, DM3, DM5, DM7 | RCP (text over TCP) | 49280 | yes |
+| Yamaha LS9 (experimental) | EtherMIDI (MIDI Parameter Change over TCP) | 12300 | yes |
+| Allen & Heath Qu-16/24/32/Pac/SB | MIDI over TCP | 51325 | no |
+| Allen & Heath SQ-5/6/7, Qu-5/6/7 | MIDI over TCP (NRPN) | 51325 | yes |
+| Allen & Heath dLive | MIDI over TCP | 51325 | yes |
+| Allen & Heath Avantis | MIDI over TCP | 51325 | no |
+| Mackie DL16S / DL32S / DL32R (experimental) | Master Fader protocol over TCP | 50001 | yes |
+| Soundcraft Ui12/Ui16/Ui24R | WebSocket (like the Ui web app) | 80 | yes |
+| Soundcraft Si / Vi (experimental) | HiQnet over TCP | 3804 | yes (with address map) |
 
-- **„Danach zurücksetzen“** stellt bei abfragbaren Pulten exakt den vorherigen Zustand wieder her. Bei der
-  alten Qu-Serie wird ein Mute umgekehrt und der Pegel auf den eingetragenen Rücksetz-Pegel gestellt.
-- Überlappen sich Wiedergaben (Jingle läuft, Durchsage kommt), wird erst nach dem Ende der letzten
-  Wiedergabe zurückgesetzt.
-- Soundcraft Ui wird nicht per OSC/HTTP, sondern über die WebSocket-Schnittstelle der Ui-Weboberfläche
-  gesteuert. Die dB-Umrechnung der Ui-Fader ist eine Näherung und kann per Option kalibriert werden.
-- A&H: Der MIDI-Kanal muss mit dem am Pult eingestellten übereinstimmen; bei SQ/Qu-5/6/7 außerdem die
-  „NRPN Fader Law“ (Audio/Linear). Die alte Qu-Serie erlaubt nur **eine** TCP-MIDI-Verbindung gleichzeitig.
-- **Yamaha:** Modell (z. B. CL5, TF3, DM7 Compact) im Pult auswählen – davon hängen Kanal- und Busanzahl ab.
-  „ON“ bei Yamaha entspricht einem nicht gemuteten Kanal; das übersetzt der Treiber.
-- **dLive/Avantis:** Das Pult belegt fünf MIDI-Kanäle ab dem eingestellten Basiskanal (Utility › Control › MIDI).
-  Aux, Gruppen und Matrizen sind erst als Mono-, dann als Stereo-Busse durchnummeriert.
-- **Soundcraft Si/Vi:** Soundcraft veröffentlicht für diese Serien keine Steuerschnittstelle; der Treiber
-  spricht HiQnet wie ViSi Remote, die Parameter-Adressen müssen aber in der Adress-Map eingetragen werden
-  (siehe [docs/mischpulte.md](docs/mischpulte.md#soundcraft-si--vi-hiqnet)). Bitte vor dem Einsatz testen.
-- Weitere Fabrikate: siehe [docs/mischpulte.md](docs/mischpulte.md).
+**Restoring after playback**
+- On queryable consoles, **"restore afterwards"** brings back exactly the previous state.
+- On the classic Qu series, a mute is inverted and the level is set to the configured restore level.
+- If playbacks overlap (a jingle is running when an announcement comes in), the restore happens only
+  after the last playback has ended.
+
+**Per console**
+- **Soundcraft Ui** is controlled through the WebSocket interface of the Ui web app, not OSC/HTTP. The dB
+  conversion of the Ui faders is an approximation and can be calibrated with an option.
+- **A&H:**
+  - The MIDI channel must match the one set on the console.
+  - On SQ/Qu-5/6/7, the "NRPN fader law" (audio/linear) must match too.
+  - The classic Qu series allows only **one** TCP MIDI connection at a time.
+- **Yamaha:**
+  - Select the model (e.g. CL5, TF3, DM7 Compact) in the console settings. The channel and bus counts depend on it.
+  - "ON" on Yamaha means an unmuted channel; the driver translates this.
+- **Yamaha LS9:**
+  - Enable *PARAMETER CHANGE* Rx/Tx in the MIDI setup.
+  - Set the MIDI device number in the console options.
+  - If the console asks for authentication, enter its MAC address.
+  - The protocol is based on reverse engineering, so test it before use.
+- **Mackie DL:**
+  - Uses the same protocol as the Master Fader app. The model (DL16S, or DL32S/DL32R) is detected
+    automatically.
+  - DL1608/DL806 (iPad dock mixers) are not supported.
+  - Based on the reverse engineering of the DigiMixer project, so test it before use.
+- **dLive/Avantis:**
+  - The console uses five MIDI channels starting at the configured base channel (Utility › Control › MIDI).
+  - Aux, groups and matrices are numbered as mono buses first, then stereo buses.
+- **Soundcraft Si/Vi:**
+  - Soundcraft publishes no control interface for these series. The driver speaks HiQnet like ViSi Remote,
+    but the parameter addresses have to be entered in the address map (see
+    [docs/consoles.md](docs/consoles.md#soundcraft-si--vi-hiqnet)).
+  - Test it before use.
+
+Other brands: see [docs/consoles.md](docs/consoles.md).
 
 ## Dante
 
-Der Pi hat kein Dante an Bord. AutoEventPlay spielt auf jedes Gerät, das unter Linux als Soundkarte
-erscheint – damit gibt es drei Wege:
+The Pi has no Dante on board. AutoEventPlay plays to any device that appears as a sound card under Linux,
+which gives three options:
 
-1. **Dante-USB-Adapter** (z. B. Audinate AVIO USB): meldet sich als USB-Soundkarte; offiziell und
-   zuverlässig. **Empfohlen.**
-2. **Inferno** (Open Source, inoffiziell, experimentell): Dante-Implementierung als ALSA-Gerät, ohne
-   Zusatzhardware. Nur für unkritische Einsätze.
-3. **AES67**: Dante-Geräte im AES67-Modus können AES67-Streams empfangen (z. B. über PipeWire/AES67 auf
-   dem Pi), erfordert PTP und Konfiguration im Dante Controller.
+1. **Dante USB adapter** (e.g. Audinate AVIO USB): shows up as a USB sound card; official and reliable.
+   **Recommended.**
+2. **Inferno** (open source, unofficial, experimental): Dante implementation as an ALSA device, without
+   extra hardware. Only for non-critical use.
+3. **AES67:** Dante devices in AES67 mode can receive AES67 streams (e.g. via PipeWire/AES67 on the Pi).
+   This requires PTP and configuration in Dante Controller.
 
-Eine rein softwarebasierte, offizielle Lösung wäre Audinates Embedded-Plattform (DEP) – lizenzpflichtig.
+A purely software-based official solution would be Audinate's Embedded Platform (DEP), which requires a licence.
 
-## Architektur
+## Architecture
 
-Python 3.11+, Starlette/Uvicorn, SQLite, Bootstrap 5, Server-Sent Events für die Live-Meter.
-Aufbau nach **CQRS**: Schreibende Aktionen sind Commands, lesende Queries, mit getrennten Bussen.
-Details: [docs/architektur.md](docs/architektur.md).
+Python 3.11+, Starlette/Uvicorn, SQLite, Bootstrap 5, and Server-Sent Events for the live meters.
+The code follows **CQRS**: writing actions are commands and reading actions are queries, each on its own bus.
+Details: [docs/architecture.md](docs/architecture.md).
 
-Schnittstelle zum eventrentmanager: `docs/abspielgeraet-api.md` im eventrentmanager-Repository.
+The eventrentmanager interface is described in `docs/abspielgeraet-api.md` in the eventrentmanager repository.

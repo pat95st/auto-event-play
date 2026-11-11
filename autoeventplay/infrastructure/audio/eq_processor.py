@@ -12,7 +12,7 @@ try:
     from scipy.signal import sosfilt  # type: ignore
 except Exception:  # pragma: no cover - depends on the machine
     sosfilt = None
-    log.warning("scipy nicht verfügbar – Equalizer werden umgangen")
+    log.warning("scipy not available – equalizers are bypassed")
 
 
 class EqState:

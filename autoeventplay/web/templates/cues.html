@@ -3,66 +3,66 @@
 <div class="row g-3">
   <div class="col-xl-4">
     <div class="aep-panel">
-      <div class="aep-panel-head"><span>Abspiel-Events (Cues)</span><button class="btn btn-sm btn-console" id="btn-new">+ Neuer Cue</button></div>
+      <div class="aep-panel-head"><span>{{ _("Playback events (cues)") }}</span><button class="btn btn-sm btn-console" id="btn-new">+ {{ _("New cue") }}</button></div>
       <div class="aep-panel-body">
-        <p class="form-text mt-0">Ein Cue legt fest, was an den Pulten passiert, wenn eine bestimmte Art von Wiedergabe startet bzw. endet – z. B. „Bei jeder Durchsage Kanal 31 entmuten und auf 0 dB, danach zurücksetzen“. Es werden alle passenden Cues ausgeführt.</p>
-        <div id="rules" class="d-flex flex-column gap-2"><span class="text-dim">Lade …</span></div>
+        <p class="form-text mt-0">{{ _("A cue defines what happens on the consoles when a certain kind of playback starts or ends – e.g. “For every announcement unmute channel 31 and set it to 0 dB, restore afterwards”. All matching cues are executed.") }}</p>
+        <div id="rules" class="d-flex flex-column gap-2"><span class="text-dim">{{ _("Loading …") }}</span></div>
       </div>
     </div>
   </div>
   <div class="col-xl-8">
     <div class="aep-panel" id="editor" hidden>
-      <div class="aep-panel-head"><span id="editor-title">Cue</span><button class="btn-close btn-close-white btn-sm" id="btn-close" aria-label="Schließen"></button></div>
+      <div class="aep-panel-head"><span id="editor-title">Cue</span><button class="btn-close btn-close-white btn-sm" id="btn-close" aria-label="{{ _('Close') }}"></button></div>
       <div class="aep-panel-body">
         <form id="rule-form">
           <div class="row g-2 mb-2">
-            <div class="col-md-5"><label class="form-label">Name</label><input class="form-control" name="name" required placeholder="z. B. Durchsagen über FOH"></div>
-            <div class="col-md-3"><label class="form-label">Bei Auftragsart</label>
+            <div class="col-md-5"><label class="form-label">{{ _("Name") }}</label><input class="form-control" name="name" required placeholder="{{ _('e.g. Announcements via FOH') }}"></div>
+            <div class="col-md-3"><label class="form-label">{{ _("For job type") }}</label>
               <select class="form-select" name="match_kind">
-                <option value="any">alle</option><option value="media">Medien (Jingle + Audio)</option><option value="jingle">Jingle</option><option value="audio">Audio-Datei</option>
-                <option value="speech">Sprache (TTS + Aufnahme)</option><option value="tts">Durchsage (TTS)</option><option value="recording">Aufnahme</option>
+                <option value="any">{{ _("all") }}</option><option value="media">{{ _("Media (jingle + audio)") }}</option><option value="jingle">{{ _("Jingle") }}</option><option value="audio">{{ _("Audio file") }}</option>
+                <option value="speech">{{ _("Speech (TTS + recording)") }}</option><option value="tts">{{ _("Announcement (TTS)") }}</option><option value="recording">{{ _("Recording") }}</option>
               </select></div>
-            <div class="col-md-4"><label class="form-label">Nur für Datei <span class="text-dim">(optional)</span></label><select class="form-select" name="match_file_id"></select></div>
-            <div class="col-md-4"><label class="form-label">Titel enthält <span class="text-dim">(optional)</span></label><input class="form-control" name="match_title" placeholder="z. B. Siegerehrung"></div>
-            <div class="col-md-3"><label class="form-label">Vorlauf nach Pult-Aktionen</label><div class="input-group"><input class="form-control" name="pre_delay_ms" type="number" min="0" max="10000" step="50" value="0"><span class="input-group-text">ms</span></div></div>
-            <div class="col-md-2"><label class="form-label">Reihenfolge</label><input class="form-control" name="priority" type="number" value="0"></div>
-            <div class="col-md-3 d-flex align-items-end"><div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" name="enabled" id="r-enabled" checked><label class="form-check-label" for="r-enabled">aktiv</label></div></div>
+            <div class="col-md-4"><label class="form-label">{{ _("Only for file") }} <span class="text-dim">({{ _("optional") }})</span></label><select class="form-select" name="match_file_id"></select></div>
+            <div class="col-md-4"><label class="form-label">{{ _("Title contains") }} <span class="text-dim">({{ _("optional") }})</span></label><input class="form-control" name="match_title" placeholder="{{ _('e.g. award ceremony') }}"></div>
+            <div class="col-md-3"><label class="form-label">{{ _("Delay after console actions") }}</label><div class="input-group"><input class="form-control" name="pre_delay_ms" type="number" min="0" max="10000" step="50" value="0"><span class="input-group-text">ms</span></div></div>
+            <div class="col-md-2"><label class="form-label">{{ _("Order") }}</label><input class="form-control" name="priority" type="number" value="0"></div>
+            <div class="col-md-3 d-flex align-items-end"><div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" name="enabled" id="r-enabled" checked><label class="form-check-label" for="r-enabled">{{ _("active") }}</label></div></div>
           </div>
 
-          <div class="d-flex align-items-center gap-2 mt-3 mb-2"><div class="aep-section-title mb-0">Vor dem Abspielen</div><button type="button" class="btn btn-sm btn-console ms-auto" data-add="start">+ Aktion</button></div>
+          <div class="d-flex align-items-center gap-2 mt-3 mb-2"><div class="aep-section-title mb-0">{{ _("Before playback") }}</div><button type="button" class="btn btn-sm btn-console ms-auto" data-add="start">+ {{ _("Action") }}</button></div>
           <div id="actions-start" class="d-flex flex-column gap-2"></div>
-          <div class="d-flex align-items-center gap-2 mt-4 mb-2"><div class="aep-section-title mb-0">Nach dem Abspielen</div><button type="button" class="btn btn-sm btn-console ms-auto" data-add="end">+ Aktion</button></div>
+          <div class="d-flex align-items-center gap-2 mt-4 mb-2"><div class="aep-section-title mb-0">{{ _("After playback") }}</div><button type="button" class="btn btn-sm btn-console ms-auto" data-add="end">+ {{ _("Action") }}</button></div>
           <div id="actions-end" class="d-flex flex-column gap-2"></div>
 
           <div class="d-flex gap-2 mt-4 flex-wrap">
-            <button class="btn btn-primary" type="submit">Speichern</button>
-            <button class="btn btn-console" type="button" id="btn-test" title="Führt die Aktionen aus, wartet 3 s und setzt zurück">Testen (3 s)</button>
-            <button class="btn btn-outline-danger ms-auto" type="button" id="btn-delete">Löschen</button>
+            <button class="btn btn-primary" type="submit">{{ _("Save") }}</button>
+            <button class="btn btn-console" type="button" id="btn-test" title="{{ _('Executes the actions, waits 3 s and restores') }}">{{ _("Test (3 s)") }}</button>
+            <button class="btn btn-outline-danger ms-auto" type="button" id="btn-delete">{{ _("Delete") }}</button>
           </div>
         </form>
       </div>
     </div>
     <div class="aep-panel" id="empty-hint">
-      <div class="aep-panel-body text-dim">Wähle links einen Cue aus oder lege einen neuen an. Vorher unter <a href="/pulte">Pulte</a> mindestens ein Mischpult hinzufügen.</div>
+      <div class="aep-panel-body text-dim">{{ _("Select a cue on the left or create a new one. First add at least one console under") }} <a href="/consoles">{{ _("Consoles") }}</a>.</div>
     </div>
   </div>
 </div>
 <template id="action-tpl">
   <div class="action-row">
     <div class="row g-2 align-items-end">
-      <div class="col-lg-2 col-md-3"><label class="form-label">Pult</label><select class="form-select form-select-sm" data-a="mixer"></select></div>
+      <div class="col-lg-2 col-md-3"><label class="form-label">{{ _("Console") }}</label><select class="form-select form-select-sm" data-a="mixer"></select></div>
       <div class="col-lg-4 col-md-9" data-a="target"></div>
       <div class="col-lg-2 col-md-3"><label class="form-label">Mute</label>
-        <select class="form-select form-select-sm" data-a="mute"><option value="unchanged">unverändert</option><option value="unmute">entmuten</option><option value="mute">muten</option></select></div>
-      <div class="col-lg-1 col-md-3"><label class="form-label">Pegel dB</label><input class="form-control form-control-sm" data-a="level" type="number" step="0.5" min="-90" max="10" placeholder="—"></div>
+        <select class="form-select form-select-sm" data-a="mute"><option value="unchanged">{{ _("unchanged") }}</option><option value="unmute">{{ _("unmute") }}</option><option value="mute">{{ _("mute") }}</option></select></div>
+      <div class="col-lg-1 col-md-3"><label class="form-label">{{ _("Level dB") }}</label><input class="form-control form-control-sm" data-a="level" type="number" step="0.5" min="-90" max="10" placeholder="—"></div>
       <div class="col-lg-1 col-md-2"><label class="form-label">Fade ms</label><input class="form-control form-control-sm" data-a="fade" type="number" min="0" max="10000" step="100" value="0"></div>
       <div class="col-lg-2 col-md-4 d-flex align-items-center gap-2">
-        <div class="form-check mb-1" data-a="restore-wrap"><input class="form-check-input" type="checkbox" data-a="restore"><label class="form-check-label small">danach zurücksetzen</label></div>
-        <button type="button" class="btn btn-sm btn-outline-danger ms-auto" data-a="remove" title="Aktion entfernen">✕</button>
+        <div class="form-check mb-1" data-a="restore-wrap"><input class="form-check-input" type="checkbox" data-a="restore"><label class="form-check-label small">{{ _("restore afterwards") }}</label></div>
+        <button type="button" class="btn btn-sm btn-outline-danger ms-auto" data-a="remove" title="{{ _('Remove action') }}">✕</button>
       </div>
       <div class="col-12" data-a="fallback-wrap" hidden>
-        <div class="d-flex align-items-center gap-2 small text-dim">Dieses Pult meldet keine aktuellen Werte. Pegel nach dem Abspielen zurücksetzen auf
-          <input class="form-control form-control-sm" style="width:90px" data-a="fallback" type="number" step="0.5" min="-90" max="10" placeholder="—"> dB (leer = nicht zurücksetzen; Mute wird umgekehrt).</div>
+        <div class="d-flex align-items-center gap-2 small text-dim">{{ _("This console does not report current values. After playback restore the level to") }}
+          <input class="form-control form-control-sm" style="width:90px" data-a="fallback" type="number" step="0.5" min="-90" max="10" placeholder="—"> {{ _("dB (empty = do not restore; mute is inverted).") }}</div>
       </div>
     </div>
   </div>
@@ -83,21 +83,21 @@
 
   function renderList() {
     const el = document.getElementById("rules");
-    if (!rules.length) { el.innerHTML = '<span class="text-dim">Noch keine Cues.</span>'; return; }
+    if (!rules.length) { el.innerHTML = '<span class="text-dim">' + AEP.esc(AEP.t("No cues yet.")) + '</span>'; return; }
     el.innerHTML = rules.map((r) => {
       const file = r.match_file_id ? files.find((f) => f.id === r.match_file_id) : null;
       const starts = r.actions.filter((a) => a.phase === "start"), ends = r.actions.filter((a) => a.phase === "end");
       return `<button type="button" class="btn btn-console text-start p-2 ${current && current.id === r.id ? "active" : ""}" data-id="${r.id}">
         <div class="d-flex align-items-center gap-2"><span class="aep-dot ${r.enabled ? "ok" : ""}"></span><strong class="text-truncate">${AEP.esc(r.name)}</strong>
         <span class="badge badge-kind kind-${r.match_kind} ms-auto">${AEP.kindLabel[r.match_kind] || r.match_kind}</span></div>
-        <div class="small text-dim mt-1">${file ? "Datei: " + AEP.esc(file.title) + " · " : ""}${r.match_title ? "Titel: „" + AEP.esc(r.match_title) + "“ · " : ""}${starts.length} vorher / ${ends.length} nachher</div>
+        <div class="small text-dim mt-1">${file ? AEP.esc(AEP.t("File:")) + " " + AEP.esc(file.title) + " · " : ""}${r.match_title ? AEP.esc(AEP.t("Title:")) + " “" + AEP.esc(r.match_title) + "” · " : ""}${AEP.esc(AEP.t("{a} before / {b} after", { a: starts.length, b: ends.length }))}</div>
         <div class="small text-dim">${starts.concat(ends).slice(0, 3).map((a) => AEP.esc(a.label)).join(" · ")}</div></button>`;
     }).join("");
   }
 
   function fileOptions(selected) {
-    return '<option value="">— alle Dateien —</option>' + files.map((f) => `<option value="${AEP.esc(f.id)}" ${f.id === selected ? "selected" : ""}>${AEP.esc((AEP.kindLabel[f.kind] || f.kind) + ": " + f.title)}</option>`).join("") +
-      (selected && !files.some((f) => f.id === selected) ? `<option value="${AEP.esc(selected)}" selected>(Datei nicht mehr im Cache)</option>` : "");
+    return '<option value="">' + AEP.esc(AEP.t("— all files —")) + '</option>' + files.map((f) => `<option value="${AEP.esc(f.id)}" ${f.id === selected ? "selected" : ""}>${AEP.esc((AEP.kindLabel[f.kind] || f.kind) + ": " + f.title)}</option>`).join("") +
+      (selected && !files.some((f) => f.id === selected) ? `<option value="${AEP.esc(selected)}" selected>${AEP.esc(AEP.t("(file no longer in cache)"))}</option>` : "");
   }
 
   function addAction(a) {
@@ -142,11 +142,11 @@
   }
 
   function open(rule) {
-    if (!mixers.length) { AEP.toast("Bitte zuerst unter „Pulte“ ein Mischpult anlegen", "err"); return; }
+    if (!mixers.length) { AEP.toast(AEP.t("Please add a console under “Consoles” first"), "err"); return; }
     current = rule;
     document.getElementById("editor").hidden = false;
     document.getElementById("empty-hint").hidden = true;
-    document.getElementById("editor-title").textContent = rule ? "Cue bearbeiten" : "Neuer Cue";
+    document.getElementById("editor-title").textContent = rule ? AEP.t("Edit cue") : AEP.t("New cue");
     form.name.value = rule ? rule.name : "";
     form.match_kind.value = rule ? rule.match_kind : "speech";
     form.match_file_id.innerHTML = fileOptions(rule ? rule.match_file_id : "");
@@ -188,13 +188,13 @@
   document.getElementById("rules").addEventListener("click", (e) => { const b = e.target.closest("[data-id]"); if (b) open(rules.find((r) => r.id === b.dataset.id)); });
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const id = await AEP.run(() => AEP.api("/api/cues/save", collect()), "Cue gespeichert");
+    const id = await AEP.run(() => AEP.api("/api/cues/save", collect()), AEP.t("Cue saved"));
     await load();
     open(rules.find((r) => r.id === id));
   });
   document.getElementById("btn-delete").addEventListener("click", async () => {
-    if (!current || !confirm("Cue „" + current.name + "“ löschen?")) return;
-    await AEP.run(() => AEP.api("/api/cues/" + current.id + "/delete", {}), "Cue gelöscht");
+    if (!current || !confirm(AEP.t("Delete cue “{name}”?", { name: current.name }))) return;
+    await AEP.run(() => AEP.api("/api/cues/" + current.id + "/delete", {}), AEP.t("Cue deleted"));
     document.getElementById("editor").hidden = true; document.getElementById("empty-hint").hidden = false; current = null;
     load();
   });

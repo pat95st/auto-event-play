@@ -4,6 +4,15 @@
 
   const AEP = (window.AEP = window.AEP || {});
 
+  // ------------------------------------------------------------------ i18n
+  // English is the source language; window.AEP_I18N holds the catalogue for the active UI language.
+  AEP.lang = window.AEP_LANG || "en";
+  AEP.t = function (text, params) {
+    let s = (window.AEP_I18N && window.AEP_I18N[text]) || text;
+    if (params) s = s.replace(/\{(\w+)\}/g, (m, k) => (params[k] !== undefined ? params[k] : m));
+    return s;
+  };
+
   // ------------------------------------------------------------------ API
   AEP.api = async function (path, data, method) {
     const opts = { method: method || (data !== undefined ? "POST" : "GET"), headers: { "X-AEP": "1" }, credentials: "same-origin" };
@@ -14,7 +23,7 @@
     const res = await fetch(path, opts);
     let payload = {};
     try { payload = await res.json(); } catch (e) { /* ignore */ }
-    if (res.status === 401 && payload.redirect) { window.location.href = payload.redirect; throw new Error("Nicht angemeldet"); }
+    if (res.status === 401 && payload.redirect) { window.location.href = payload.redirect; throw new Error(AEP.t("Not logged in")); }
     if (!res.ok || payload.ok === false) throw new Error(payload.error || ("HTTP " + res.status));
     return payload.result !== undefined ? payload.result : payload;
   };
@@ -44,13 +53,15 @@
     return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   };
 
-  AEP.kindLabel = { jingle: "Jingle", audio: "Audio", tts: "Durchsage", recording: "Aufnahme", stop: "Stopp", any: "Alle", speech: "Sprache", media: "Medien" };
-  AEP.statusLabel = { done: "fertig", failed: "fehlgeschlagen", cancelled: "abgebrochen", playing: "spielt", expired: "verfallen" };
+  const T = AEP.t;
+  AEP.kindLabel = { jingle: T("Jingle"), audio: T("Audio"), tts: T("Announcement"), recording: T("Recording"), stop: T("Stop"), any: T("All"), speech: T("Speech"), media: T("Media") };
+  AEP.statusLabel = { done: T("done"), failed: T("failed"), cancelled: T("cancelled"), playing: T("playing"), expired: T("expired") };
+  AEP.phaseLabel = { preparing: T("preparing"), loading: T("loading"), console: T("console"), playing: T("playing") };
 
   AEP.fmtTime = function (t) {
     if (!t) return "";
     const d = typeof t === "number" ? new Date(t * 1000) : new Date(t);
-    return d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    return d.toLocaleTimeString(AEP.lang === "de" ? "de-DE" : "en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   };
 
   // ------------------------------------------------------------------ level maths (mirrors domain/levels.py)
@@ -94,14 +105,14 @@
       const d = await AEP.api("/api/dashboard");
       AEP.lastDashboard = d;
       const erm = d.erm.status;
-      setPill("st-erm", erm.online ? "ok" : (d.erm.paired ? "err" : "warn"), d.erm.rental ? d.erm.rental.name : (erm.online ? "verbunden" : (d.erm.paired ? "offline" : "nicht gekoppelt")), erm.message);
+      setPill("st-erm", erm.online ? "ok" : (d.erm.paired ? "err" : "warn"), d.erm.rental ? d.erm.rental.name : (erm.online ? T("connected") : (d.erm.paired ? T("offline") : T("not paired"))), erm.message);
       const audioOk = d.audio.devices.length > 0 && d.audio.devices.every((x) => x.open);
-      setPill("st-audio", d.audio.devices.length === 0 ? "warn" : (audioOk ? "ok" : "err"), d.audio.devices.length ? d.audio.devices.length + " Gerät(e)" : "kein Ausgang", d.audio.message);
+      setPill("st-audio", d.audio.devices.length === 0 ? "warn" : (audioOk ? "ok" : "err"), d.audio.devices.length ? T("{n} device(s)", { n: d.audio.devices.length }) : T("no output"), d.audio.message);
       const mix = d.mixers.filter((m) => m.enabled);
       const bad = mix.filter((m) => m.status && m.status.ok === false);
-      setPill("st-mixers", mix.length === 0 ? "" : (bad.length ? "err" : "ok"), mix.length ? mix.length + " Pult(e)" : "keine Pulte", bad.map((m) => m.name + ": " + m.status.message).join("\n") || "");
-      const playing = d.playback.running.filter((r) => r.phase === "spielt");
-      setPill("st-play", playing.length ? "play" : "", playing.length ? playing.map((r) => r.label).join(", ").slice(0, 40) : "bereit", "");
+      setPill("st-mixers", mix.length === 0 ? "" : (bad.length ? "err" : "ok"), mix.length ? T("{n} console(s)", { n: mix.length }) : T("no consoles"), bad.map((m) => m.name + ": " + m.status.message).join("\n") || "");
+      const playing = d.playback.running.filter((r) => r.phase === "playing");
+      setPill("st-play", playing.length ? "play" : "", playing.length ? playing.map((r) => r.label).join(", ").slice(0, 40) : T("ready"), "");
       emit("dashboard", d);
     } catch (e) { /* status bar is best effort */ }
   };
@@ -118,8 +129,13 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     const stop = document.getElementById("btn-stop");
-    if (stop) stop.addEventListener("click", () => AEP.run(() => AEP.api("/api/playback/stop", {}), "Wiedergabe gestoppt"));
+    if (stop) stop.addEventListener("click", () => AEP.run(() => AEP.api("/api/playback/stop", {}), T("Playback stopped")));
     const logout = document.getElementById("btn-logout");
+    const lang = document.getElementById("lang-select");
+    if (lang) lang.addEventListener("change", async () => {
+      try { await AEP.api("/api/ui/language", { language: lang.value }); window.location.reload(); }
+      catch (e) { AEP.toast(e.message, "err"); }
+    });
     if (logout) logout.addEventListener("click", async (e) => { e.preventDefault(); await AEP.api("/api/auth/logout", {}); window.location.href = "/login"; });
     if (document.body.dataset.authed === "1") {
       AEP.connect();
@@ -280,19 +296,94 @@
   AEP.Fader = Fader;
 
   // ------------------------------------------------------------------ channel strip
+  // ------------------------------------------------------------------ trim knob
+  const TRIM_MIN = -24, TRIM_MAX = 24, TRIM_ANGLE = 135;
+  AEP.TrimKnob = class {
+    constructor(root, opts) {
+      this.root = root; this.opts = opts;
+      this.knob = root.querySelector(".trim-knob");
+      this.pointer = root.querySelector(".trim-pointer");
+      this.val = root.querySelector(".trim-val");
+      this.db = opts.db || 0;
+      this.dragging = false;
+      this.render();
+      let startY = 0, startDb = 0;
+      this.knob.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        this.dragging = true; startY = e.clientY; startDb = this.db;
+        this.knob.setPointerCapture(e.pointerId);
+      });
+      this.knob.addEventListener("pointermove", (e) => {
+        if (!this.dragging) return;
+        const range = e.shiftKey ? 600 : 150; // px for the full range
+        this.set(startDb + (startY - e.clientY) / range * (TRIM_MAX - TRIM_MIN), false);
+      });
+      const end = () => { if (this.dragging) { this.dragging = false; this.commit(); } };
+      this.knob.addEventListener("pointerup", end);
+      this.knob.addEventListener("pointercancel", end);
+      this.knob.addEventListener("dblclick", () => { this.set(0, false); this.commit(); });
+      this.knob.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        this.set(this.db + (e.deltaY < 0 ? 1 : -1) * (e.shiftKey ? 0.1 : 0.5), false);
+        clearTimeout(this.wheelTimer); this.wheelTimer = setTimeout(() => this.commit(), 150);
+      }, { passive: false });
+      this.knob.addEventListener("keydown", (e) => {
+        const step = e.shiftKey ? 0.1 : 1;
+        if (e.key === "ArrowUp" || e.key === "ArrowRight") this.set(this.db + step, true);
+        else if (e.key === "ArrowDown" || e.key === "ArrowLeft") this.set(this.db - step, true);
+        else if (e.key === "Home" || e.key === "0") this.set(0, true);
+        else return;
+        e.preventDefault();
+      });
+    }
+    set(db, commit) {
+      this.db = Math.round(Math.max(TRIM_MIN, Math.min(TRIM_MAX, db)) * 10) / 10;
+      this.render();
+      const now = performance.now();
+      if (commit) this.commit();
+      else if (!this.lastSent || now - this.lastSent > 80) this.commit(true);
+    }
+    commit(intermediate) {
+      this.lastSent = performance.now();
+      if (this.sent === this.db && !intermediate) return;
+      this.sent = this.db;
+      this.opts.onChange(this.db);
+    }
+    setExternal(db) { if (!this.dragging && db !== this.db) { this.db = db; this.sent = db; this.render(); } }
+    render() {
+      const a = (this.db - TRIM_MIN) / (TRIM_MAX - TRIM_MIN) * 2 * TRIM_ANGLE - TRIM_ANGLE;
+      this.pointer.style.transform = `rotate(${a}deg)`;
+      this.knob.style.setProperty("--arc-from", `${a < 0 ? 360 + a : 0}deg`);
+      this.knob.style.setProperty("--arc-len", `${Math.abs(a)}deg`);
+      this.val.textContent = (this.db > 0 ? "+" : "") + this.db.toFixed(1);
+      this.knob.setAttribute("aria-valuenow", String(this.db));
+      this.knob.setAttribute("aria-valuetext", this.val.textContent + " dB");
+      this.root.classList.toggle("is-zero", this.db === 0);
+    }
+  };
+
   AEP.buildStrip = function (container, ch, type, extras) {
     const el = document.createElement("div");
     el.className = "strip" + (ch.muted ? " is-muted" : "");
     el.dataset.type = type;
     el.dataset.id = ch.id;
     if (ch.bus) el.dataset.bus = ch.bus;
-    const sub = type === "input" ? ({ media: "Medien", tts: "Auto-Ansage", recording: "Durchsage" }[ch.bus] || "") : ((ch.device === "default" ? "Standard" : ch.device) + " · " + (ch.channel + 1));
+    const sub = type === "input" ? ({ media: T("Media"), tts: T("Auto announcement"), recording: T("Announcement") }[ch.bus] || "") : ((ch.device === "default" ? T("Default") : ch.device) + " · " + (ch.channel + 1));
     el.innerHTML = `
-      <div class="scribble" title="Doppelklick zum Umbenennen"><span class="name">${AEP.esc(ch.name)}</span><span class="sub">${AEP.esc(sub)}</span></div>
-      ${type === "output" ? `<button class="strip-btn tone ${extras && extras.tone ? "on" : ""}" title="Testton 1 kHz / -18 dBFS">1 kHz</button>` : `<div class="strip-btn spacer" aria-hidden="true">&nbsp;</div>`}
-      <button class="strip-btn eq ${ch.eq_active ? "on" : ""}" title="Equalizer öffnen">EQ</button>
+      <div class="scribble" title="${AEP.esc(T("Double-click to rename"))}"><span class="name">${AEP.esc(ch.name)}</span><span class="sub">${AEP.esc(sub)}</span></div>
+      <div class="strip-top">${type === "output"
+        ? `<button class="strip-btn tone ${extras && extras.tone ? "on" : ""}" title="${AEP.esc(T("Test signal: pink noise, -18 dBFS RMS"))}">PINK</button>`
+        : `<div class="trim" title="${AEP.esc(T("Input trim: drag or mouse wheel · double-click = 0 dB · Shift = fine"))}">
+             <div class="trim-knob" role="slider" tabindex="0" aria-label="${AEP.esc(T("Trim"))}" aria-valuemin="${TRIM_MIN}" aria-valuemax="${TRIM_MAX}"><div class="trim-pointer"></div></div>
+             <div class="trim-info"><span class="trim-label">TRIM</span><span class="trim-val mono"></span></div>
+           </div>`}</div>
+      <div class="proc-chain ${ch.order === "dyn_eq" ? "dyn-first" : ""}">
+        <button class="strip-btn eq ${ch.eq_active ? "on" : ""}" title="${AEP.esc(T("Open equalizer"))}">EQ</button>
+        <button class="proc-swap" title="${AEP.esc(T("Swap order of EQ and compressor"))}" aria-label="${AEP.esc(T("Swap order of EQ and compressor"))}">⇅</button>
+        <button class="strip-btn dyn ${ch.dyn_active ? "on" : ""}" title="${AEP.esc(T("Open compressor"))}">DYN</button>
+      </div>
       <button class="strip-btn mute ${ch.muted ? "on" : ""}">MUTE</button>
-      <div class="fader-area"><div class="meter"></div><div class="fader" aria-label="${AEP.esc(ch.name)}"></div></div>
+      <div class="fader-area"><div class="meter"></div><div class="gr-meter" title="${AEP.esc(T("Gain reduction"))}"><div class="gr-fill"></div></div><div class="fader" aria-label="${AEP.esc(ch.name)}"></div></div>
       <div class="db-readout">${AEP.fmtDb(ch.level_db)}</div>`;
     container.appendChild(el);
     const base = type === "input" ? "/api/inputs/" : "/api/outputs/";
@@ -328,8 +419,34 @@
         onSaved: (eq, active) => { ch.eq = eq; ch.eq_active = active; eqBtn.classList.toggle("on", active); },
       });
     });
+    const dynBtn = el.querySelector(".dyn");
+    dynBtn.addEventListener("click", () => {
+      if (!AEP.openDyn) return;
+      AEP.openDyn({
+        name: ch.name, dyn: ch.dyn, endpoint: base + encodeURIComponent(ch.id) + "/dyn", grKey: (type === "input" ? "in:" : "out:") + ch.id,
+        onSaved: (dyn, active) => { ch.dyn = dyn; ch.dyn_active = active; dynBtn.classList.toggle("on", active); },
+      });
+    });
+    const grFill = el.querySelector(".gr-fill");
+    // processing order: the button order on the strip is the signal order
+    const chain = el.querySelector(".proc-chain");
+    const showOrder = (order) => {
+      chain.classList.toggle("dyn-first", order === "dyn_eq");
+      chain.querySelector(".proc-swap").title = order === "dyn_eq" ? T("Order: compressor → EQ (click to swap)") : T("Order: EQ → compressor (click to swap)");
+    };
+    showOrder(ch.order);
+    chain.querySelector(".proc-swap").addEventListener("click", async () => {
+      const order = ch.order === "dyn_eq" ? "eq_dyn" : "dyn_eq";
+      showOrder(order);
+      try { await AEP.api(base + encodeURIComponent(ch.id) + "/order", { order }); ch.order = order; }
+      catch (e) { showOrder(ch.order); AEP.toast(e.message, "err"); }
+    });
+    const trim = type === "input" ? new AEP.TrimKnob(el.querySelector(".trim"), {
+      db: ch.trim_db || 0,
+      onChange: (db) => AEP.api(base + encodeURIComponent(ch.id) + "/trim", { trim_db: db }).then(() => { ch.trim_db = db; }).catch((e) => AEP.toast(e.message, "err")),
+    }) : null;
     el.querySelector(".scribble").addEventListener("dblclick", async () => {
-      const name = prompt("Name des Kanals", ch.name);
+      const name = prompt(T("Channel name"), ch.name);
       if (!name || name === ch.name) return;
       await AEP.run(() => AEP.api(base + encodeURIComponent(ch.id) + "/name", { name }));
       ch.name = name;
@@ -337,12 +454,19 @@
     });
     return {
       el, fader, meter,
+      setGr(db) { // db <= 0; bar grows downwards, 0..-20 dB full scale
+        const v = Math.max(0, Math.min(1, -(db || 0) / 20));
+        grFill.style.height = (v * 100) + "%";
+      },
       update(c) {
         fader.setExternal(c.level_db);
         if (!fader.dragging) showDb(c.level_db);
         muteBtn.classList.toggle("on", c.muted);
         el.classList.toggle("is-muted", c.muted);
         if (c.eq) { ch.eq = c.eq; ch.eq_active = c.eq_active; eqBtn.classList.toggle("on", !!c.eq_active); }
+        if (c.dyn) { ch.dyn = c.dyn; ch.dyn_active = c.dyn_active; dynBtn.classList.toggle("on", !!c.dyn_active); }
+        if (c.order) { ch.order = c.order; showOrder(c.order); }
+        if (trim && c.trim_db !== undefined) { ch.trim_db = c.trim_db; trim.setExternal(c.trim_db); }
       },
     };
   };

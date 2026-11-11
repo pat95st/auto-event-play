@@ -9,6 +9,7 @@ from ...domain.levels import MIN_DB, clamp_db, db_to_fader, fader_to_db
 from ...domain.model import Target, TargetKind
 from .base import MixerDriver, MixerError
 from .transports import OscUdpClient
+from ...i18n import Msg
 
 
 @dataclass
@@ -85,7 +86,7 @@ class OscMixerDriver(MixerDriver):
         level sends the driver's native level format."""
         address = (target.raw or "").strip()
         if not address.startswith("/"):
-            raise MixerError("Roh-Adresse muss mit '/' beginnen")
+            raise MixerError("Raw address must start with '/'")
         if which == "mute":
             if address.endswith("/on"):
                 return OscParam(address, mute_via_on, decode_on)
@@ -132,5 +133,5 @@ class OscMixerDriver(MixerDriver):
         await self.connect()
         reply = await self.info_query()
         if reply is None:
-            raise MixerError(f"Keine Antwort von {self.host}:{self.port} (/info)")
-        return "Antwort: " + " · ".join(str(a) for a in reply if not isinstance(a, bytes))
+            raise MixerError(Msg("No reply from {host}:{port} (/info)", host=self.host, port=self.port))
+        return Msg("Reply: {reply}", reply=" · ".join(str(a) for a in reply if not isinstance(a, bytes)))

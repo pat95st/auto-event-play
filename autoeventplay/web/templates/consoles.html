@@ -3,24 +3,24 @@
 <div class="row g-3">
   <div class="col-xl-7">
     <div class="aep-panel">
-      <div class="aep-panel-head"><span>Gekoppelte Mischpulte</span><button class="btn btn-sm btn-console" id="btn-new">+ Pult hinzufügen</button></div>
+      <div class="aep-panel-head"><span>{{ _("Linked consoles") }}</span><button class="btn btn-sm btn-console" id="btn-new">+ {{ _("Add console") }}</button></div>
       <div class="aep-panel-body">
         <table class="table align-middle mb-0">
-          <thead><tr><th>Name</th><th>Typ</th><th>Adresse</th><th>Status</th><th></th></tr></thead>
-          <tbody id="mixers"><tr><td colspan="5" class="text-dim">Lade …</td></tr></tbody>
+          <thead><tr><th>{{ _("Name") }}</th><th>{{ _("Type") }}</th><th>{{ _("Address") }}</th><th>{{ _("Status") }}</th><th></th></tr></thead>
+          <tbody id="mixers"><tr><td colspan="5" class="text-dim">{{ _("Loading …") }}</td></tr></tbody>
         </table>
       </div>
     </div>
     <div class="aep-panel mt-3">
-      <div class="aep-panel-head"><span>Manuell schalten</span></div>
+      <div class="aep-panel-head"><span>{{ _("Manual control") }}</span></div>
       <div class="aep-panel-body">
-        <p class="form-text mt-0">Zum Prüfen der Adressierung: Ziel wählen und direkt Mute/Unmute bzw. einen Pegel senden.</p>
+        <p class="form-text mt-0">{{ _("To check the addressing: choose a target and send mute/unmute or a level directly.") }}</p>
         <div class="row g-2 align-items-end" id="manual">
-          <div class="col-md-3"><label class="form-label">Pult</label><select class="form-select form-select-sm" id="m-mixer"></select></div>
+          <div class="col-md-3"><label class="form-label">{{ _("Console") }}</label><select class="form-select form-select-sm" id="m-mixer"></select></div>
           <div class="col-md-5" id="m-target"></div>
-          <div class="col-md-2"><label class="form-label">Pegel dB</label><input class="form-control form-control-sm" id="m-level" type="number" step="0.5" min="-90" max="10" placeholder="—"></div>
+          <div class="col-md-2"><label class="form-label">{{ _("Level dB") }}</label><input class="form-control form-control-sm" id="m-level" type="number" step="0.5" min="-90" max="10" placeholder="—"></div>
           <div class="col-md-2 d-flex gap-1">
-            <button class="btn btn-sm btn-console flex-fill" data-m="unmute">An</button>
+            <button class="btn btn-sm btn-console flex-fill" data-m="unmute">{{ _("On") }}</button>
             <button class="btn btn-sm btn-console flex-fill" data-m="mute">Mute</button>
             <button class="btn btn-sm btn-console flex-fill" data-m="level">dB</button>
           </div>
@@ -30,28 +30,28 @@
   </div>
   <div class="col-xl-5">
     <div class="aep-panel" id="editor" hidden>
-      <div class="aep-panel-head"><span id="editor-title">Pult</span><button class="btn-close btn-close-white btn-sm" id="btn-close" aria-label="Schließen"></button></div>
+      <div class="aep-panel-head"><span id="editor-title">{{ _("Console") }}</span><button class="btn-close btn-close-white btn-sm" id="btn-close" aria-label="{{ _('Close') }}"></button></div>
       <div class="aep-panel-body">
         <form id="mixer-form">
           <input type="hidden" name="id">
           <div class="row g-2">
-            <div class="col-md-6"><label class="form-label">Name</label><input class="form-control" name="name" required placeholder="z. B. FOH WING"></div>
-            <div class="col-md-6"><label class="form-label">Typ</label><select class="form-select" name="type" id="type-select"></select></div>
-            <div class="col-md-8"><label class="form-label">IP-Adresse / Host</label><input class="form-control" name="host" required placeholder="192.168.1.20"></div>
+            <div class="col-md-6"><label class="form-label">{{ _("Name") }}</label><input class="form-control" name="name" required placeholder="{{ _('e.g. FOH WING') }}"></div>
+            <div class="col-md-6"><label class="form-label">{{ _("Type") }}</label><select class="form-select" name="type" id="type-select"></select></div>
+            <div class="col-md-8"><label class="form-label">{{ _("IP address / host") }}</label><input class="form-control" name="host" required placeholder="192.168.1.20"></div>
             <div class="col-md-4"><label class="form-label">Port</label><input class="form-control" name="port" type="number" min="1" max="65535"></div>
           </div>
           <div id="type-notes" class="form-text my-2"></div>
           <div id="type-options" class="row g-2"></div>
-          <div class="form-check form-switch my-3"><input class="form-check-input" type="checkbox" name="enabled" id="enabled" checked><label class="form-check-label" for="enabled">aktiv (wird bei Cues angesteuert)</label></div>
+          <div class="form-check form-switch my-3"><input class="form-check-input" type="checkbox" name="enabled" id="enabled" checked><label class="form-check-label" for="enabled">{{ _("active (controlled by cues)") }}</label></div>
           <div class="d-flex gap-2">
-            <button class="btn btn-primary" type="submit">Speichern</button>
-            <button class="btn btn-outline-danger ms-auto" type="button" id="btn-delete">Löschen</button>
+            <button class="btn btn-primary" type="submit">{{ _("Save") }}</button>
+            <button class="btn btn-outline-danger ms-auto" type="button" id="btn-delete">{{ _("Delete") }}</button>
           </div>
         </form>
       </div>
     </div>
     <div class="aep-panel mt-3">
-      <div class="aep-panel-head"><span>Unterstützte Pulte</span></div>
+      <div class="aep-panel-head"><span>{{ _("Supported consoles") }}</span></div>
       <div class="aep-panel-body small" id="types-info"></div>
     </div>
   </div>
@@ -68,22 +68,22 @@
   async function load() {
     [types, mixers] = await Promise.all([AEP.api("/api/mixer-types").then((r) => r.types), AEP.api("/api/mixers").then((r) => r.mixers)]);
     typeSel.innerHTML = types.map((t) => `<option value="${t.type_id}">${AEP.esc(t.display_name)}</option>`).join("");
-    document.getElementById("types-info").innerHTML = types.map((t) => `<div class="mb-2"><strong>${AEP.esc(t.display_name)}</strong> <span class="badge text-bg-dark">${AEP.esc(t.transport)}${t.default_port ? " · Port " + t.default_port : ""}</span>${t.can_query ? ' <span class="badge text-bg-dark" title="Pult meldet aktuelle Werte – exaktes Zurücksetzen möglich">abfragbar</span>' : ""}<div class="text-dim">${AEP.esc(t.notes || "")}</div></div>`).join("");
+    document.getElementById("types-info").innerHTML = types.map((t) => `<div class="mb-2"><strong>${AEP.esc(t.display_name)}</strong> <span class="badge text-bg-dark">${AEP.esc(t.transport)}${t.default_port ? " · " + AEP.t("Port") + " " + t.default_port : ""}</span>${t.can_query ? ' <span class="badge text-bg-dark" title="' + AEP.esc(AEP.t("Console reports current values – exact restore possible")) + '">' + AEP.esc(AEP.t("queryable")) + '</span>' : ""}<div class="text-dim">${AEP.esc(t.notes || "")}</div></div>`).join("");
     renderList();
     renderManual();
   }
 
   function renderList() {
     const tb = document.getElementById("mixers");
-    if (!mixers.length) { tb.innerHTML = '<tr><td colspan="5" class="text-dim">Noch kein Pult angelegt.</td></tr>'; return; }
+    if (!mixers.length) { tb.innerHTML = '<tr><td colspan="5" class="text-dim">' + AEP.esc(AEP.t("No console added yet.")) + '</td></tr>'; return; }
     tb.innerHTML = mixers.map((m) => {
       const st = m.status || {};
       const dot = !m.enabled ? "" : st.ok === true ? "ok" : st.ok === false ? "err" : "";
-      return `<tr><td><strong>${AEP.esc(m.name)}</strong>${m.enabled ? "" : ' <span class="badge text-bg-secondary">inaktiv</span>'}</td>
+      return `<tr><td><strong>${AEP.esc(m.name)}</strong>${m.enabled ? "" : ' <span class="badge text-bg-secondary">' + AEP.esc(AEP.t("inactive")) + '</span>'}</td>
         <td class="small">${AEP.esc(m.driver ? m.driver.display_name : m.type)}</td>
         <td class="mono small">${AEP.esc(m.host)}${m.port ? ":" + m.port : ""}</td>
         <td class="small"><span class="aep-dot ${dot}"></span> <span class="text-dim">${AEP.esc(st.message || "")}</span></td>
-        <td class="text-end text-nowrap"><button class="btn btn-sm btn-console" data-test="${m.id}">Testen</button> <button class="btn btn-sm btn-console" data-edit="${m.id}">Bearbeiten</button></td></tr>`;
+        <td class="text-end text-nowrap"><button class="btn btn-sm btn-console" data-test="${m.id}">${AEP.esc(AEP.t("Test"))}</button> <button class="btn btn-sm btn-console" data-edit="${m.id}">${AEP.esc(AEP.t("Edit"))}</button></td></tr>`;
     }).join("");
   }
 
@@ -105,7 +105,7 @@
 
   function openEditor(m) {
     document.getElementById("editor").hidden = false;
-    document.getElementById("editor-title").textContent = m ? "Pult bearbeiten" : "Neues Pult";
+    document.getElementById("editor-title").textContent = m ? AEP.t("Edit console") : AEP.t("New console");
     form.id.value = m ? m.id : "";
     form.name.value = m ? m.name : "";
     form.type.value = m ? m.type : types[0].type_id;
@@ -124,13 +124,13 @@
     e.preventDefault();
     const options = {};
     document.querySelectorAll("[data-opt]").forEach((el) => { options[el.dataset.opt] = el.value; });
-    await AEP.run(() => AEP.api("/api/mixers/save", { id: form.id.value, name: form.name.value, type: form.type.value, host: form.host.value, port: form.port.value, enabled: form.enabled.checked, options }), "Pult gespeichert");
+    await AEP.run(() => AEP.api("/api/mixers/save", { id: form.id.value, name: form.name.value, type: form.type.value, host: form.host.value, port: form.port.value, enabled: form.enabled.checked, options }), AEP.t("Console saved"));
     document.getElementById("editor").hidden = true;
     load();
   });
   document.getElementById("btn-delete").addEventListener("click", async () => {
-    if (!confirm("Pult wirklich löschen?")) return;
-    await AEP.run(() => AEP.api("/api/mixers/" + form.id.value + "/delete", {}), "Pult gelöscht");
+    if (!confirm(AEP.t("Really delete this console?"))) return;
+    await AEP.run(() => AEP.api("/api/mixers/" + form.id.value + "/delete", {}), AEP.t("Console deleted"));
     document.getElementById("editor").hidden = true;
     load();
   });
@@ -149,7 +149,7 @@
   let picker = null;
   function renderManual() {
     const sel = document.getElementById("m-mixer");
-    sel.innerHTML = mixers.length ? mixers.map((m) => `<option value="${m.id}">${AEP.esc(m.name)}</option>`).join("") : '<option value="">— kein Pult —</option>';
+    sel.innerHTML = mixers.length ? mixers.map((m) => `<option value="${m.id}">${AEP.esc(m.name)}</option>`).join("") : '<option value="">' + AEP.esc(AEP.t("— no console —")) + '</option>';
     const update = () => {
       const m = mixers.find((x) => x.id === sel.value);
       picker = m && m.driver ? AEP.targetPicker(document.getElementById("m-target"), m.driver.kinds, null) : null;
@@ -163,10 +163,10 @@
     if (!b || !picker) return;
     const mode = b.dataset.m;
     const lvl = document.getElementById("m-level").value;
-    if (mode === "level" && lvl === "") { AEP.toast("Bitte einen Pegel eingeben", "err"); return; }
+    if (mode === "level" && lvl === "") { AEP.toast(AEP.t("Please enter a level"), "err"); return; }
     AEP.run(() => AEP.api("/api/mixers/" + document.getElementById("m-mixer").value + "/action", {
       target: picker.value(), mute: mode === "level" ? "unchanged" : mode, level_db: mode === "level" ? parseFloat(lvl) : null,
-    }), (r) => "Gesendet: " + r);
+    }), (r) => AEP.t("Sent: {what}", { what: r }));
   });
   load();
 })();

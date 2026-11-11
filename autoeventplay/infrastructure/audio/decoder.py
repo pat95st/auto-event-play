@@ -10,6 +10,7 @@ import wave
 from pathlib import Path
 
 import numpy as np
+from ...i18n import Msg
 
 log = logging.getLogger("aep.decoder")
 
@@ -29,20 +30,20 @@ class AudioDecoder:
     def decode(self, path: str | Path, sample_rate: int, channels: int = 2) -> np.ndarray:
         path = Path(path)
         if not path.exists():
-            raise DecodeError(f"Datei fehlt: {path.name}")
+            raise DecodeError(Msg("File missing: {name}", name=path.name))
         if self.available:
             cmd = [self.ffmpeg, "-nostdin", "-v", "error", "-i", str(path), "-vn", "-f", "f32le",
                    "-acodec", "pcm_f32le", "-ac", str(channels), "-ar", str(sample_rate), "-"]
             proc = subprocess.run(cmd, capture_output=True, timeout=120)
             if proc.returncode != 0:
-                raise DecodeError(proc.stderr.decode("utf-8", "replace").strip()[:300] or "ffmpeg-Fehler")
+                raise DecodeError(proc.stderr.decode("utf-8", "replace").strip()[:300] or "ffmpeg error")
             data = np.frombuffer(proc.stdout, dtype=np.float32)
             if data.size == 0:
-                raise DecodeError("Datei enthält kein Audio")
+                raise DecodeError("File contains no audio")
             return data.reshape(-1, channels).copy()
         if path.suffix.lower() == ".wav":
             return _decode_wav(path, sample_rate, channels)
-        raise DecodeError("ffmpeg ist nicht installiert – nur WAV kann abgespielt werden")
+        raise DecodeError("ffmpeg is not installed – only WAV can be played")
 
     async def decode_async(self, path: str | Path, sample_rate: int, channels: int = 2) -> np.ndarray:
         return await asyncio.to_thread(self.decode, path, sample_rate, channels)
@@ -59,7 +60,7 @@ def _decode_wav(path: Path, sample_rate: int, channels: int) -> np.ndarray:
     elif width == 1:
         data = (np.frombuffer(raw, dtype=np.uint8).astype(np.float32) - 128.0) / 128.0
     else:
-        raise DecodeError(f"WAV mit {width * 8} Bit wird ohne ffmpeg nicht unterstützt")
+        raise DecodeError(Msg("{bits}-bit WAV is not supported without ffmpeg", bits=width * 8))
     data = data.reshape(-1, ch)
     if sr != sample_rate and data.shape[0] > 1:
         idx = np.linspace(0, data.shape[0] - 1, int(data.shape[0] * sample_rate / sr))

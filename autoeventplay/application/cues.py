@@ -112,15 +112,15 @@ class CueExecutor:
                 if value is None:
                     return
                 await self.mixers.set_mute(action.mixer_id, action.target, bool(value))
-                log.info("Zurückgesetzt: %s → %s", self.describe(action), "Mute" if value else "an")
+                log.info("Restored: %s → %s", self.describe(action), "mute" if value else "on")
             else:
                 if value is None and not lease.known:
-                    log.info("Pegel von %s nicht zurückgesetzt (Pult meldet keinen Wert, kein Rücksetz-Pegel)", self.describe(action))
+                    log.info("Level of %s not restored (console reports no value, no fallback level)", self.describe(action))
                     return
                 await self._fade(action, float(value) if value is not None else MIN_DB, action.fade_ms)
-                log.info("Zurückgesetzt: %s → %s dB", self.describe(action), "-∞" if is_off(value) else f"{value:.1f}")
+                log.info("Restored: %s → %s dB", self.describe(action), "-∞" if is_off(value) else f"{value:.1f}")
         except MixerError as exc:
-            log.error("Zurücksetzen fehlgeschlagen (%s): %s", self.describe(action), exc)
+            log.error("Restore failed (%s): %s", self.describe(action), exc)
 
     async def _apply_plain(self, action: CueAction) -> None:
         label = self.describe(action)
@@ -133,12 +133,12 @@ class CueExecutor:
                 if muted and action.level_db is not None and action.fade_ms > 0:
                     await self._fade(action, action.level_db, action.fade_ms)
                 await self.mixers.set_mute(action.mixer_id, action.target, muted)
-                log.info("Pult: %s → %s", label, "Mute" if muted else "Unmute")
+                log.info("Console: %s → %s", label, "Mute" if muted else "Unmute")
             if action.level_db is not None and not (action.mute == MuteAction.MUTE and action.fade_ms > 0):
                 await self._fade(action, action.level_db, action.fade_ms)
-                log.info("Pult: %s → %s dB", label, "-∞" if is_off(action.level_db) else f"{action.level_db:.1f}")
+                log.info("Console: %s → %s dB", label, "-∞" if is_off(action.level_db) else f"{action.level_db:.1f}")
         except MixerError as exc:
-            log.error("Pult-Aktion fehlgeschlagen (%s): %s", label, exc)
+            log.error("Console action failed (%s): %s", label, exc)
 
     async def _fade(self, action: CueAction, target_db: float, fade_ms: int) -> None:
         if fade_ms <= 0:

@@ -4,53 +4,53 @@
   <div class="col-xxl-8 col-xl-7">
     <div class="aep-panel h-100">
       <div class="aep-panel-head">
-        <span>Kanalzüge</span>
-        <span class="text-dim" style="text-transform:none;letter-spacing:0;font-weight:400">Ziehen · Mausrad · Doppelklick = 0 dB · Shift = fein</span>
+        <span>{{ _("Channel strips") }}</span>
+        <span class="text-dim" style="text-transform:none;letter-spacing:0;font-weight:400">{{ _("Drag · mouse wheel · double-click = 0 dB · Shift = fine") }}</span>
       </div>
       <div class="aep-panel-body">
         <div class="strips" id="strips">
-          <div class="strip-group"><div class="strip-group-label">Quellen</div><div class="strip-row" id="inputs"></div></div>
-          <div class="strip-group"><div class="strip-group-label">Ausgänge</div><div class="strip-row" id="outputs"></div></div>
+          <div class="strip-group"><div class="strip-group-label">{{ _("Sources") }}</div><div class="strip-row" id="inputs"></div></div>
+          <div class="strip-group"><div class="strip-group-label">{{ _("Outputs") }}</div><div class="strip-row" id="outputs"></div></div>
         </div>
       </div>
     </div>
   </div>
   <div class="col-xxl-4 col-xl-5 d-flex flex-column gap-3">
     <div class="aep-panel">
-      <div class="aep-panel-head"><span>Wiedergabe</span><span id="lanes-hint" class="text-dim" style="text-transform:none;letter-spacing:0;font-weight:400"></span></div>
+      <div class="aep-panel-head"><span>{{ _("Playback") }}</span><span id="lanes-hint" class="text-dim" style="text-transform:none;letter-spacing:0;font-weight:400"></span></div>
       <div class="aep-panel-body">
-        <div class="now-playing mb-3" id="now-playing"><span class="np-empty">— keine Wiedergabe —</span></div>
-        <div class="aep-section-title">Warteschlange</div>
-        <ul class="list-compact mb-3" id="pending"><li class="text-dim">leer</li></ul>
-        <div class="aep-section-title">Zuletzt</div>
-        <ul class="list-compact" id="history"><li class="text-dim">noch nichts abgespielt</li></ul>
+        <div class="now-playing mb-3" id="now-playing"><span class="np-empty">{{ _("— nothing playing —") }}</span></div>
+        <div class="aep-section-title">{{ _("Queue") }}</div>
+        <ul class="list-compact mb-3" id="pending"><li class="text-dim">{{ _("empty") }}</li></ul>
+        <div class="aep-section-title">{{ _("Recent") }}</div>
+        <ul class="list-compact" id="history"><li class="text-dim">{{ _("nothing played yet") }}</li></ul>
       </div>
     </div>
     <div class="aep-panel">
-      <div class="aep-panel-head"><span>Test &amp; Vorhören</span></div>
+      <div class="aep-panel-head"><span>{{ _("Test & preview") }}</span></div>
       <div class="aep-panel-body">
         <form id="tts-form" class="mb-3">
-          <label class="form-label" for="tts-text">Durchsage (Text-to-Speech)</label>
-          <textarea class="form-control mb-2" id="tts-text" rows="2" placeholder="z. B. Die Siegerehrung beginnt in fünf Minuten."></textarea>
+          <label class="form-label" for="tts-text">{{ _("Announcement (text-to-speech)") }}</label>
+          <textarea class="form-control mb-2" id="tts-text" rows="2" placeholder="{{ _('e.g. The award ceremony starts in five minutes.') }}"></textarea>
           <div class="d-flex gap-2 align-items-center flex-wrap">
             <select class="form-select form-select-sm w-auto" id="tts-lang">
-              <option value="">Sprache der Veranstaltung</option>
-              <option value="de-DE">Deutsch</option><option value="en-GB">Englisch</option><option value="fr-FR">Französisch</option>
-              <option value="it-IT">Italienisch</option><option value="es-ES">Spanisch</option><option value="nl-NL">Niederländisch</option>
+              <option value="">{{ _("Event language") }}</option>
+              <option value="de-DE">{{ _("German") }}</option><option value="en-GB">{{ _("English") }}</option><option value="fr-FR">{{ _("French") }}</option>
+              <option value="it-IT">{{ _("Italian") }}</option><option value="es-ES">{{ _("Spanish") }}</option><option value="nl-NL">{{ _("Dutch") }}</option>
             </select>
-            <div class="form-check mb-0"><input class="form-check-input" type="checkbox" id="tts-gong" checked><label class="form-check-label" for="tts-gong">mit Gong</label></div>
-            <button class="btn btn-sm btn-console ms-auto" type="submit">▶ Sprechen</button>
+            <div class="form-check mb-0"><input class="form-check-input" type="checkbox" id="tts-gong" checked><label class="form-check-label" for="tts-gong">{{ _("with gong") }}</label></div>
+            <button class="btn btn-sm btn-console ms-auto" type="submit">▶ {{ _("Speak") }}</button>
           </div>
         </form>
         <div class="d-flex gap-2 align-items-end flex-wrap">
           <div class="flex-grow-1">
-            <label class="form-label" for="file-select">Datei aus dem Cache</label>
-            <select class="form-select form-select-sm" id="file-select"><option value="">— keine Dateien —</option></select>
+            <label class="form-label" for="file-select">{{ _("File from cache") }}</label>
+            <select class="form-select form-select-sm" id="file-select"><option value="">{{ _("— no files —") }}</option></select>
           </div>
-          <button class="btn btn-sm btn-console" id="btn-play-file">▶ Abspielen</button>
+          <button class="btn btn-sm btn-console" id="btn-play-file">▶ {{ _("Play") }}</button>
           <button class="btn btn-sm btn-console" id="btn-gong">Gong</button>
         </div>
-        <p class="form-text mb-0 mt-2">Tests laufen über dieselben Kanalzüge und lösen passende Pult-Cues aus, werden aber nicht an den eventrentmanager gemeldet.</p>
+        <p class="form-text mb-0 mt-2">{{ _("Tests run through the same channel strips and trigger matching console cues, but are not reported to eventrentmanager.") }}</p>
       </div>
     </div>
   </div>
@@ -81,16 +81,16 @@
 
   function renderPlayback(pb, files) {
     const np = document.getElementById("now-playing");
-    np.innerHTML = pb.running.length ? pb.running.map((x) => `<div class="np-item"><span class="aep-dot play"></span><span class="badge badge-kind kind-${x.kind}">${AEP.kindLabel[x.kind] || x.kind}</span><span class="text-truncate">${AEP.esc(x.label)}</span><span class="ms-auto text-dim small">${AEP.esc(x.phase)}</span></div>`).join("")
-      : '<span class="np-empty">— keine Wiedergabe —</span>';
+    np.innerHTML = pb.running.length ? pb.running.map((x) => `<div class="np-item"><span class="aep-dot play"></span><span class="badge badge-kind kind-${x.kind}">${AEP.kindLabel[x.kind] || x.kind}</span><span class="text-truncate">${AEP.esc(x.label)}</span><span class="ms-auto text-dim small">${AEP.esc(AEP.phaseLabel[x.phase] || x.phase)}</span></div>`).join("")
+      : '<span class="np-empty">' + AEP.esc(AEP.t("— nothing playing —")) + '</span>';
     const pend = document.getElementById("pending");
-    pend.innerHTML = pb.pending.length ? pb.pending.map((x) => `<li><span class="badge badge-kind kind-${x.kind}">${AEP.kindLabel[x.kind] || x.kind}</span><span class="text-truncate">${AEP.esc(x.label)}</span></li>`).join("") : '<li class="text-dim">leer</li>';
+    pend.innerHTML = pb.pending.length ? pb.pending.map((x) => `<li><span class="badge badge-kind kind-${x.kind}">${AEP.kindLabel[x.kind] || x.kind}</span><span class="text-truncate">${AEP.esc(x.label)}</span></li>`).join("") : '<li class="text-dim">' + AEP.esc(AEP.t("empty")) + '</li>';
     const hist = document.getElementById("history");
-    hist.innerHTML = pb.history.length ? pb.history.slice(0, 8).map((x) => `<li><span class="text-dim small mono">${AEP.fmtTime(x.time)}</span><span class="badge badge-kind kind-${x.kind}">${AEP.kindLabel[x.kind] || x.kind}</span><span class="text-truncate">${AEP.esc(x.label)}</span><span class="ms-auto small st-${x.status}" title="${AEP.esc(x.error || "")}">${AEP.statusLabel[x.status] || x.status}${x.local ? " · Test" : ""}</span></li>`).join("") : '<li class="text-dim">noch nichts abgespielt</li>';
-    document.getElementById("lanes-hint").textContent = pb.parallel ? "Medien ∥ Durchsagen" : "eine Warteschlange";
+    hist.innerHTML = pb.history.length ? pb.history.slice(0, 8).map((x) => `<li><span class="text-dim small mono">${AEP.fmtTime(x.time)}</span><span class="badge badge-kind kind-${x.kind}">${AEP.kindLabel[x.kind] || x.kind}</span><span class="text-truncate">${AEP.esc(x.label)}</span><span class="ms-auto small st-${x.status}" title="${AEP.esc(x.error || "")}">${AEP.statusLabel[x.status] || x.status}${x.local ? " · " + AEP.t("test") : ""}</span></li>`).join("") : '<li class="text-dim">' + AEP.esc(AEP.t("nothing played yet")) + '</li>';
+    document.getElementById("lanes-hint").textContent = pb.parallel ? AEP.t("Media ∥ announcements") : AEP.t("single queue");
     const sel = document.getElementById("file-select");
     const cur = sel.value;
-    sel.innerHTML = files.length ? files.map((f) => `<option value="${AEP.esc(f.id)}" data-kind="${AEP.esc(f.kind)}">${AEP.esc((AEP.kindLabel[f.kind] || f.kind) + ": " + f.title)}</option>`).join("") : '<option value="">— keine Dateien —</option>';
+    sel.innerHTML = files.length ? files.map((f) => `<option value="${AEP.esc(f.id)}" data-kind="${AEP.esc(f.kind)}">${AEP.esc((AEP.kindLabel[f.kind] || f.kind) + ": " + f.title)}</option>`).join("") : '<option value="">' + AEP.esc(AEP.t("— no files —")) + '</option>';
     if (cur) sel.value = cur;
   }
 
@@ -98,19 +98,20 @@
   AEP.on("meters", (m) => {
     for (const [id, db] of Object.entries(m.inputs)) strips["in:" + id] && strips["in:" + id].meter.set(db);
     for (const [id, db] of Object.entries(m.outputs)) strips["out:" + id] && strips["out:" + id].meter.set(db);
+    for (const [key, db] of Object.entries(m.gr || {})) strips[key] && strips[key].setGr(db);
   });
 
   document.getElementById("tts-form").addEventListener("submit", (e) => {
     e.preventDefault();
     const text = document.getElementById("tts-text").value.trim();
     if (!text) return;
-    AEP.run(() => AEP.api("/api/playback/test", { kind: "tts", text, language: document.getElementById("tts-lang").value, with_gong: document.getElementById("tts-gong").checked }), "Durchsage eingereiht");
+    AEP.run(() => AEP.api("/api/playback/test", { kind: "tts", text, language: document.getElementById("tts-lang").value, with_gong: document.getElementById("tts-gong").checked }), AEP.t("Announcement queued"));
   });
   document.getElementById("btn-play-file").addEventListener("click", () => {
     const sel = document.getElementById("file-select");
     if (!sel.value) return;
     const kind = sel.selectedOptions[0].dataset.kind === "jingle" ? "jingle" : "audio";
-    AEP.run(() => AEP.api("/api/playback/test", { kind, file_id: sel.value }), "Datei eingereiht");
+    AEP.run(() => AEP.api("/api/playback/test", { kind, file_id: sel.value }), AEP.t("File queued"));
   });
   document.getElementById("btn-gong").addEventListener("click", () => AEP.run(() => AEP.api("/api/playback/test", { kind: "gong" })));
 })();

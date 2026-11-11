@@ -9,10 +9,12 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from .. import __version__
+from ..domain.dynamics import is_active as dyn_is_active, normalize_dyn
 from ..domain.eq import is_active, normalize_eq
 from ..domain.levels import db_to_fader
-from ..domain.model import INPUT_DEFS
+from ..domain.model import INPUT_DEFS, LEGACY_INPUT_NAMES
 from ..infrastructure.audio.engine import AudioEngine
+from ..i18n import LANGUAGES, current_language, t
 from ..infrastructure.audio.tts import DEFAULT_VOICES
 from ..infrastructure.logs import ring
 from ..infrastructure.mixers.base import driver_class, driver_types
@@ -27,11 +29,17 @@ def register_query_handlers(bus: QueryBus, s: "Services") -> None:
     def routing_view() -> dict[str, Any]:
         state = s.routing_repo.load()
         bus_of = {d.id: d.bus.value for d in INPUT_DEFS}
+        default_name = {d.id: d.name for d in INPUT_DEFS}
         return {
-            "inputs": [{"id": i.id, "name": i.name, "level_db": i.level_db, "muted": i.muted, "bus": bus_of.get(i.id),
-                        "fader": db_to_fader(i.level_db), "eq": normalize_eq(i.eq), "eq_active": is_active(i.eq)} for i in state.inputs],
+            # untouched default names follow the UI language; user-given names are shown as entered
+            "inputs": [{"id": i.id, "name": t(default_name[i.id]) if i.name in (default_name.get(i.id), LEGACY_INPUT_NAMES.get(i.id)) else i.name, "level_db": i.level_db, "muted": i.muted, "bus": bus_of.get(i.id),
+                        "fader": db_to_fader(i.level_db), "eq": normalize_eq(i.eq), "eq_active": is_active(i.eq),
+                        "dyn": normalize_dyn(i.dyn), "dyn_active": dyn_is_active(i.dyn),
+                        "trim_db": i.trim_db, "order": i.order} for i in state.inputs],
             "outputs": [{"id": o.id, "name": o.name, "device": o.device, "channel": o.channel, "level_db": o.level_db,
-                         "muted": o.muted, "fader": db_to_fader(o.level_db), "eq": normalize_eq(o.eq), "eq_active": is_active(o.eq)}
+                         "muted": o.muted, "fader": db_to_fader(o.level_db), "eq": normalize_eq(o.eq), "eq_active": is_active(o.eq),
+                         "dyn": normalize_dyn(o.dyn), "dyn_active": dyn_is_active(o.dyn),
+                         "order": o.order}
                         for o in state.outputs],
             "crosspoints": sorted([list(cp) for cp in state.crosspoints]),
         }
@@ -45,7 +53,8 @@ def register_query_handlers(bus: QueryBus, s: "Services") -> None:
             "paired": s.sync.paired,
             "token_hint": _hint(s.settings.get("erm.token")),
             "player": s.settings.get("erm.player"),
-            "status": dict(s.sync.status),
+            "status": {**s.sync.status, "message": t(s.sync.status.get("message")),
+                       "last_error": t(s.sync.status.get("last_error")) if s.sync.status.get("last_error") else None},
             "rental": (s.sync.state or last).get("rental"),
             "tts": (s.sync.state or last).get("tts"),
             "scheduled": (s.sync.state or last).get("scheduled") or [],
@@ -60,8 +69,19 @@ def register_query_handlers(bus: QueryBus, s: "Services") -> None:
             for f in s.file_repo.all().values() if not f["file_id"].startswith("__")
         ]
 
+    def audio_status() -> dict[str, Any]:
+        st = s.engine.status()
+        st["message"] = t(st["message"])
+        for d in st["devices"]:
+            d["error"] = t(d["error"]) if d["error"] else None
+        return st
+
     def playback_view() -> dict[str, Any]:
         snap = s.playback.snapshot()
+        for item in snap["running"] + snap["pending"] + snap["history"]:
+            item["label"] = t(item.get("label"))
+            if item.get("error"):
+                item["error"] = t(item["error"])
         snap["recent"] = s.processed_repo.recent(30)
         return snap
 
@@ -70,7 +90,7 @@ def register_query_handlers(bus: QueryBus, s: "Services") -> None:
             "routing": routing_view(),
             "playback": playback_view(),
             "erm": erm_status(),
-            "audio": s.engine.status(),
+            "audio": audio_status(),
             "mixers": [{"id": m.id, "name": m.name, "type": m.type, "enabled": m.enabled, "status": s.mixers.statuses().get(m.id)}
                        for m in s.mixer_repo.all()],
             "files": files_view(),
@@ -83,7 +103,7 @@ def register_query_handlers(bus: QueryBus, s: "Services") -> None:
         tts = s.tts
         return {
             "devices": AudioEngine.list_devices(),
-            "status": s.engine.status(),
+            "status": audio_status(),
             "outputs": routing_view()["outputs"],
             "sample_rate": s.engine.sample_rate,
             "blocksize": s.engine.blocksize,
@@ -146,6 +166,8 @@ def register_query_handlers(bus: QueryBus, s: "Services") -> None:
             "data_dir": str(s.config.data_dir),
             "disk_free_mb": disk.free // (1024 * 1024),
             "users": s.user_repo.list(),
+            "language": current_language(),
+            "languages": LANGUAGES,
             "commands": bus_names(s),
         }
 

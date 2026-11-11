@@ -25,6 +25,7 @@ from ..application.bus import DomainError
 from ..container import Services
 from ..infrastructure.auth import SESSION_COOKIE, SESSION_MAX_AGE, verify_password
 from ..infrastructure.logs import log_files
+from ..i18n import LANGUAGES, Msg, catalog_for, current_language, set_language, t, text_of
 
 log = logging.getLogger("aep.web")
 HERE = Path(__file__).parent
@@ -37,10 +38,14 @@ def create_app(services: Services) -> Starlette:
     env = Environment(loader=FileSystemLoader(HERE / "templates"), autoescape=select_autoescape(["html"]))
     vendor_ok = (HERE / "static" / "vendor" / "bootstrap" / "bootstrap.min.css").exists()
 
+    env.globals["_"] = lambda text, **params: t(Msg(text, **params)) if params else t(text)
+
     def render(request: Request, template: str, **ctx: Any) -> HTMLResponse:
+        lang = current_language()
         html = env.get_template(template).render(
             request=request, user=request.scope.get("user"), version=__version__, vendor_ok=vendor_ok,
-            active=ctx.pop("active", ""), **ctx,
+            active=ctx.pop("active", ""), lang=lang, languages=LANGUAGES, js_catalog=catalog_for(lang),
+            title=t(ctx.pop("title", "")), **ctx,
         )
         return HTMLResponse(html)
 
@@ -49,6 +54,7 @@ def create_app(services: Services) -> Starlette:
     class AuthMiddleware(BaseHTTPMiddleware):
         async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
             path = request.url.path
+            set_language(s.settings.get("ui.language", "en"))
             user = s.sessions.verify(request.cookies.get(SESSION_COOKIE))
             request.scope["user"] = user
             if path.startswith(PUBLIC_PATHS):
@@ -58,12 +64,12 @@ def create_app(services: Services) -> Starlette:
             if not user:
                 return _deny(request, "/login?next=" + path)
             if request.method in ("POST", "PUT", "DELETE", "PATCH") and request.headers.get("x-aep") != "1":
-                return JSONResponse({"error": "Fehlender Anfrage-Header (CSRF-Schutz)"}, status_code=403)
+                return JSONResponse({"error": t("Missing request header (CSRF protection)")}, status_code=403)
             return await call_next(request)
 
     def _deny(request: Request, location: str) -> Response:
         if request.url.path.startswith("/api/"):
-            return JSONResponse({"error": "Nicht angemeldet", "redirect": location}, status_code=401)
+            return JSONResponse({"error": t("Not logged in"), "redirect": location}, status_code=401)
         return RedirectResponse(location, status_code=303)
 
     # ------------------------------------------------------------------ helpers
@@ -80,10 +86,10 @@ def create_app(services: Services) -> Starlette:
             try:
                 result = await fn(request)
             except DomainError as exc:
-                return JSONResponse({"error": str(exc)}, status_code=exc.status)
+                return JSONResponse({"error": t(text_of(exc))}, status_code=exc.status)
             except (KeyError, TypeError, ValueError) as exc:
                 log.debug("bad request", exc_info=True)
-                return JSONResponse({"error": f"Ungültige Anfrage: {exc}"}, status_code=400)
+                return JSONResponse({"error": t(Msg("Invalid request: {error}", error=str(exc)))}, status_code=400)
             if isinstance(result, Response):
                 return result
             return JSONResponse({"ok": True, "result": result})
@@ -106,13 +112,13 @@ def create_app(services: Services) -> Starlette:
     # ------------------------------------------------------------------ pages
 
     async def page_mixer(request: Request) -> Response:
-        return render(request, "mixer.html", active="mixer", title="Mischpult")
+        return render(request, "mixer.html", active="mixer", title="Mixer")
 
     async def page_routing(request: Request) -> Response:
         return render(request, "routing.html", active="routing", title="Routing")
 
     async def page_consoles(request: Request) -> Response:
-        return render(request, "consoles.html", active="consoles", title="Pulte")
+        return render(request, "consoles.html", active="consoles", title="Consoles")
 
     async def page_cues(request: Request) -> Response:
         return render(request, "cues.html", active="cues", title="Cues")
@@ -132,12 +138,12 @@ def create_app(services: Services) -> Starlette:
     async def page_login(request: Request) -> Response:
         if s.user_repo.count() == 0:
             return RedirectResponse("/setup", status_code=303)
-        return render(request, "login.html", title="Anmelden")
+        return render(request, "login.html", title="Log in")
 
     async def page_setup(request: Request) -> Response:
         if s.user_repo.count() > 0:
             return RedirectResponse("/login", status_code=303)
-        return render(request, "setup.html", title="Einrichtung")
+        return render(request, "setup.html", title="Setup")
 
     # ------------------------------------------------------------------ auth API
 
@@ -155,17 +161,17 @@ def create_app(services: Services) -> Starlette:
         now = loop.time()
         recent = [t for t in login_failures.get(ip, []) if now - t < 300]
         if len(recent) >= 10:
-            return JSONResponse({"error": "Zu viele Fehlversuche – bitte 5 Minuten warten"}, status_code=429)
+            return JSONResponse({"error": t("Too many failed attempts – please wait 5 minutes")}, status_code=429)
         username = str(data.get("username") or "").strip()
         password = str(data.get("password") or "")
         ok = await asyncio.to_thread(verify_password, password, s.user_repo.get_hash(username))
         if not ok:
             recent.append(now)
             login_failures[ip] = recent
-            log.warning("Fehlgeschlagene Anmeldung für „%s“ von %s", username, ip)
-            return JSONResponse({"error": "Benutzername oder Passwort falsch"}, status_code=401)
+            log.warning("Failed login for \"%s\" from %s", username, ip)
+            return JSONResponse({"error": t("Wrong user name or password")}, status_code=401)
         login_failures.pop(ip, None)
-        log.info("Anmeldung: %s (%s)", username, ip)
+        log.info("Login: %s (%s)", username, ip)
         return _session_response(username)
 
     async def api_setup(request: Request) -> Response:
@@ -173,7 +179,7 @@ def create_app(services: Services) -> Starlette:
         try:
             await s.commands.dispatch(c.CreateAdmin(str(data.get("username") or ""), str(data.get("password") or "")))
         except DomainError as exc:
-            return JSONResponse({"error": str(exc)}, status_code=exc.status)
+            return JSONResponse({"error": t(text_of(exc))}, status_code=exc.status)
         return _session_response(str(data.get("username")).strip())
 
     async def api_logout(request: Request) -> Response:
@@ -211,11 +217,11 @@ def create_app(services: Services) -> Starlette:
     async def api_log_download(request: Request) -> Response:
         files = log_files(s.config.log_dir)
         if not files:
-            return PlainTextResponse("Noch keine Logdatei vorhanden.")
+            return PlainTextResponse(t("No log file yet."))
         name = request.query_params.get("file") or files[0].name
         match = next((f for f in files if f.name == name), None)
         if match is None:
-            return PlainTextResponse("Datei nicht gefunden", status_code=404)
+            return PlainTextResponse(t("File not found"), status_code=404)
         return FileResponse(match, media_type="text/plain; charset=utf-8", filename=match.name)
 
     async def api_log_files(request: Request) -> Response:
@@ -229,9 +235,11 @@ def create_app(services: Services) -> Starlette:
     routes = [
         Route("/", page_mixer),
         Route("/routing", page_routing),
-        Route("/pulte", page_consoles),
+        Route("/consoles", page_consoles),
+        Route("/pulte", lambda r: RedirectResponse("/consoles", status_code=301)),
         Route("/cues", page_cues),
-        Route("/instanz", page_instance),
+        Route("/instance", page_instance),
+        Route("/instanz", lambda r: RedirectResponse("/instance", status_code=301)),
         Route("/audio", page_audio),
         Route("/logs", page_logs),
         Route("/system", page_system),
@@ -268,6 +276,11 @@ def create_app(services: Services) -> Starlette:
         Route("/api/outputs/{id}/name", command(lambda r, d: c.RenameChannel("output", p(r, "id"), d["name"])), methods=["POST"]),
         Route("/api/inputs/{id}/eq", command(lambda r, d: c.SetChannelEq("input", p(r, "id"), dict(d["eq"]))), methods=["POST"]),
         Route("/api/outputs/{id}/eq", command(lambda r, d: c.SetChannelEq("output", p(r, "id"), dict(d["eq"]))), methods=["POST"]),
+        Route("/api/inputs/{id}/dyn", command(lambda r, d: c.SetChannelDynamics("input", p(r, "id"), dict(d["dyn"]))), methods=["POST"]),
+        Route("/api/inputs/{id}/trim", command(lambda r, d: c.SetInputTrim(p(r, "id"), d["trim_db"])), methods=["POST"]),
+        Route("/api/inputs/{id}/order", command(lambda r, d: c.SetChannelOrder("input", p(r, "id"), str(d["order"]))), methods=["POST"]),
+        Route("/api/outputs/{id}/order", command(lambda r, d: c.SetChannelOrder("output", p(r, "id"), str(d["order"]))), methods=["POST"]),
+        Route("/api/outputs/{id}/dyn", command(lambda r, d: c.SetChannelDynamics("output", p(r, "id"), dict(d["dyn"]))), methods=["POST"]),
         Route("/api/outputs/{id}/tone", command(lambda r, d: c.SetTestTone(p(r, "id"), bool(d["enabled"]))), methods=["POST"]),
         Route("/api/outputs", command(lambda r, d: c.ConfigureOutputs(list(d["outputs"]))), methods=["POST"]),
         Route("/api/crosspoints", command(lambda r, d: c.SetCrosspoint(d["input_id"], d["output_id"], bool(d["enabled"]))), methods=["POST"]),
@@ -288,6 +301,7 @@ def create_app(services: Services) -> Starlette:
         Route("/api/erm/sync", command(lambda r, d: c.SyncNow()), methods=["POST"]),
         Route("/api/playback/stop", command(lambda r, d: c.StopPlayback()), methods=["POST"]),
         Route("/api/playback/test", command(lambda r, d: c.PlayLocal(d.get("kind", ""), d.get("file_id"), d.get("text"), d.get("language"), bool(d.get("with_gong")))), methods=["POST"]),
+        Route("/api/ui/language", command(lambda r, d: c.SetLanguage(str(d.get("language", "")))), methods=["POST"]),
         Route("/api/account/password", command(lambda r, d: c.ChangePassword(r.scope["user"], d.get("current_password", ""), d.get("new_password", ""))), methods=["POST"]),
 
         Mount("/static", app=StaticFiles(directory=HERE / "static"), name="static"),

@@ -19,6 +19,7 @@ from typing import Any, Callable
 from ...domain.model import PlaybackItem
 from ..repositories import FileCacheRepository, ProcessedRequestRepository, SettingsRepository
 from .client import ErmClient, ErmError, ErmUnauthorized, normalize_base_url
+from ...i18n import Msg, text_of
 
 log = logging.getLogger("aep.erm")
 
@@ -42,7 +43,7 @@ class ErmSync:
         self._downloads: dict[str, asyncio.Lock] = {}
         self._status_retry: list[tuple[str, str, str | None, int]] = []
         self.state: dict[str, Any] = {}
-        self.status: dict[str, Any] = {"online": False, "message": "nicht gekoppelt", "last_ok": None, "last_error": None}
+        self.status: dict[str, Any] = {"online": False, "message": "not paired", "last_ok": None, "last_error": None}
 
     # ------------------------------------------------------------------ config
 
@@ -84,7 +85,7 @@ class ErmSync:
         while True:
             interval = 2.0
             if not self.paired:
-                self._set_status(False, "nicht gekoppelt" if not self.base_url else "kein Geräte-Token – bitte koppeln")
+                self._set_status(False, Msg("not paired") if not self.base_url else Msg("no device token – please pair"))
                 interval = 3.0
             else:
                 try:
@@ -92,15 +93,15 @@ class ErmSync:
                     interval = float(self.state.get("poll_interval_seconds") or 2)
                     backoff = 2.0
                 except ErmUnauthorized as exc:
-                    self._set_status(False, f"Token abgelehnt: {exc} – bitte neu koppeln", error=True)
+                    self._set_status(False, Msg("Token rejected: {error} – please pair again", error=text_of(exc)), error=True)
                     interval = 15.0
                 except ErmError as exc:
-                    self._set_status(False, str(exc), error=True)
+                    self._set_status(False, text_of(exc), error=True)
                     interval = backoff
                     backoff = min(30.0, backoff * 2)
                 except Exception as exc:  # pragma: no cover
-                    log.exception("Synchronisation fehlgeschlagen")
-                    self._set_status(False, f"Fehler: {exc}", error=True)
+                    log.exception("Synchronisation failed")
+                    self._set_status(False, Msg("Error: {error}", error=text_of(exc)), error=True)
                     interval = backoff
                     backoff = min(30.0, backoff * 2)
             self._wake.clear()
@@ -129,7 +130,7 @@ class ErmSync:
         state = await client.state(self.now_playing())
         self.state = state
         rental = state.get("rental")
-        self._set_status(True, f"verbunden · {rental['name']}" if rental else "verbunden · keine laufende Veranstaltung")
+        self._set_status(True, Msg("connected · {event}", event=rental["name"]) if rental else Msg("connected · no active event"))
         self.settings.set("erm.player", state.get("player"))
         self.settings.set("erm.last_state", {k: state.get(k) for k in ("rental", "tts", "gong", "files", "scheduled", "minute_programs", "server_time")})
         if self._file_task is None or self._file_task.done():
@@ -141,7 +142,7 @@ class ErmSync:
             try:
                 item = PlaybackItem.from_queue(q)
             except (ValueError, KeyError) as exc:
-                log.warning("Unbekannter Auftrag %s: %s", qid, exc)
+                log.warning("Unknown request %s: %s", qid, exc)
                 continue
             if self.enqueue:
                 self.enqueue(item)
@@ -167,7 +168,7 @@ class ErmSync:
                 await self._download_file(client, f)
                 changed = True
             except ErmError as exc:
-                log.warning("Datei „%s“ konnte nicht geladen werden: %s", f.get("title"), exc)
+                log.warning("Could not download file \"%s\": %s", f.get("title"), exc)
         # files that are no longer in the manifest are removed – but only when an event is active
         # (an empty manifest during a network hiccup must not wipe the cache)
         if state.get("rental") is not None:
@@ -176,7 +177,7 @@ class ErmSync:
                     Path(entry["path"]).unlink(missing_ok=True)
                     self.files.delete(fid)
                     changed = True
-                    log.info("Datei aus dem Cache entfernt: %s", entry.get("title"))
+                    log.info("File removed from cache: %s", entry.get("title"))
         gong = state.get("gong")
         if gong:
             entry = cached.get("__gong__")
@@ -187,10 +188,10 @@ class ErmSync:
                     if entry:
                         Path(entry["path"]).unlink(missing_ok=True)
                     self.files.save("__gong__", str(gong.get("version")), "gong", "Gong", None, gong.get("mime"), size, str(target))
-                    log.info("Eigener Gong geladen")
+                    log.info("Custom gong downloaded")
                     changed = True
                 except ErmError as exc:
-                    log.warning("Gong konnte nicht geladen werden: %s", exc)
+                    log.warning("Could not download gong: %s", exc)
         elif "__gong__" in cached:
             Path(cached["__gong__"]["path"]).unlink(missing_ok=True)
             self.files.delete("__gong__")
@@ -206,7 +207,7 @@ class ErmSync:
             if entry and entry["version"] == f.get("version") and Path(entry["path"]).exists():
                 return Path(entry["path"])
             target = self._file_path(fid, str(f.get("version")))
-            log.info("Lade Datei „%s“ (%s)", f.get("title"), f.get("filename"))
+            log.info("Downloading file \"%s\" (%s)", f.get("title"), f.get("filename"))
             size = await client.download(f.get("url") or f"/api/player/v1/files/{fid}", target)
             if entry and entry["path"] != str(target):
                 Path(entry["path"]).unlink(missing_ok=True)
@@ -215,7 +216,7 @@ class ErmSync:
 
     async def resolve_file(self, item: PlaybackItem) -> Path:
         if not item.file_id:
-            raise ErmError("Auftrag ohne Datei")
+            raise ErmError("Request without file")
         entry = self.files.get(item.file_id)
         if entry and Path(entry["path"]).exists():
             return Path(entry["path"])
@@ -226,7 +227,7 @@ class ErmSync:
 
     async def resolve_recording(self, item: PlaybackItem) -> Path:
         if not item.recording_url:
-            raise ErmError("Auftrag ohne Aufnahme")
+            raise ErmError("Request without recording")
         target = self.cache_dir / SAFE.sub("_", f"recording_{item.id}")
         if not target.exists():
             await self.client().download(item.recording_url, target)
@@ -249,9 +250,9 @@ class ErmSync:
             await self.client().report_status(item.status_url, status, error)
         except ErmError as exc:
             if exc.status in (404, 422):
-                log.warning("Status „%s“ für Auftrag %s abgelehnt: %s", status, item.id, exc)
+                log.warning("Status \"%s\" for request %s rejected: %s", status, item.id, exc)
                 return
-            log.warning("Status „%s“ für Auftrag %s nicht gemeldet (%s) – neuer Versuch folgt", status, item.id, exc)
+            log.warning("Status \"%s\" for request %s not reported (%s) – will retry", status, item.id, exc)
             self._status_retry.append((item.status_url, status, error, 0))
 
     async def _flush_status_retries(self, client: ErmClient) -> None:
@@ -272,11 +273,11 @@ class ErmSync:
         if result.get("token"):
             self.settings.set("erm.token", result["token"])
         elif not self.token or url != self.base_url:
-            raise ErmError("Server hat keinen Geräte-Token geliefert")
+            raise ErmError("Server did not return a device token")
         self.settings.set("erm.base_url", url)
         self.settings.set("erm.player", result.get("player"))
         self.settings.set("erm.paired_rental", result.get("rental"))
-        log.info("Gekoppelt mit %s (%s) für „%s“", url, (result.get("player") or {}).get("name"),
+        log.info("Paired with %s (%s) for \"%s\"", url, (result.get("player") or {}).get("name"),
                  (result.get("rental") or {}).get("name"))
         self.wake()
         return result
@@ -286,5 +287,5 @@ class ErmSync:
         self.settings.delete("erm.player")
         self.settings.delete("erm.paired_rental")
         self.state = {}
-        log.info("Kopplung mit dem eventrentmanager aufgehoben")
+        log.info("Pairing with eventrentmanager removed")
         self.wake()

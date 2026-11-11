@@ -23,6 +23,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, ClassVar
 
 from ...domain.model import MixerConfig, Target, TargetKind
+from ...i18n import Msg, t
 
 log = logging.getLogger("aep.mixer")
 
@@ -46,6 +47,11 @@ class KindSpec:
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["kind"] = self.kind.value
+        d["label"] = t(self.label)
+        d["dest_label"] = t(self.dest_label) if self.dest_label else None
+        for key in ("number_labels", "dest_labels"):
+            if d[key]:
+                d[key] = {n: t(v) for n, v in d[key].items()}
         return d
 
 
@@ -59,7 +65,12 @@ class OptionSpec:
     help: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        d = asdict(self)
+        d["label"] = t(self.label)
+        d["help"] = t(self.help) if self.help else None
+        if self.choices:
+            d["choices"] = [(k, t(v)) for k, v in self.choices]
+        return d
 
 
 @dataclass
@@ -77,14 +88,14 @@ class DriverInfo:
     def to_dict(self) -> dict[str, Any]:
         return {
             "type_id": self.type_id,
-            "display_name": self.display_name,
+            "display_name": t(self.display_name),
             "family": self.family,
             "default_port": self.default_port,
             "transport": self.transport,
             "can_query": self.can_query,
             "kinds": [k.to_dict() for k in self.kinds],
             "options": [o.to_dict() for o in self.options],
-            "notes": self.notes,
+            "notes": t(self.notes),
         }
 
 
@@ -135,26 +146,26 @@ class MixerDriver(abc.ABC):
         for k in self.kinds_for(self.config):
             if k.kind == kind:
                 return k
-        raise MixerError(f"{self.display_name} unterstützt '{kind.value}' nicht")
+        raise MixerError(Msg("{console} does not support '{kind}'", console=self.display_name, kind=kind.value))
 
     def validate(self, target: Target, param: str) -> KindSpec:
         spec = self.spec(target.kind)
         if param == "mute" and not spec.mute:
-            raise MixerError(f"{spec.label}: Mute wird von {self.display_name} nicht unterstützt")
+            raise MixerError(Msg("{target}: mute is not supported by {console}", target=spec.label, console=self.display_name))
         if param == "level" and not spec.level:
-            raise MixerError(f"{spec.label}: Pegel wird von {self.display_name} nicht unterstützt")
+            raise MixerError(Msg("{target}: level is not supported by {console}", target=spec.label, console=self.display_name))
         if target.kind == TargetKind.RAW:
             if not target.raw:
-                raise MixerError("Roh-Adresse fehlt")
+                raise MixerError("Raw address missing")
             return spec
         if spec.max > 1 or target.kind != TargetKind.MAIN:
             n = target.number or 1
             if n < 1 or n > spec.max:
-                raise MixerError(f"{spec.label} {n} gibt es nicht (1–{spec.max})")
+                raise MixerError(Msg("{target} {n} does not exist (1–{max})", target=spec.label, n=n, max=spec.max))
         if target.kind == TargetKind.SEND:
             d = target.dest or 0
             if d < 1 or (spec.dest_max and d > spec.dest_max):
-                raise MixerError(f"Ziel {d} gibt es nicht (1–{spec.dest_max})")
+                raise MixerError(Msg("Destination {d} does not exist (1–{max})", d=d, max=spec.dest_max))
         return spec
 
     def describe(self, target: Target) -> str:
@@ -163,11 +174,12 @@ class MixerDriver(abc.ABC):
         except MixerError:
             return target.key()
         if target.kind == TargetKind.RAW:
-            return f"Roh: {target.raw}"
+            return f"Raw: {target.raw}"
         n = target.number or 1
-        name = (spec.number_labels or {}).get(n) or (f"{spec.label} {n}" if spec.max > 1 else spec.label)
+        label = t(spec.label)
+        name = t((spec.number_labels or {}).get(n) or "") or (f"{label} {n}" if spec.max > 1 else label)
         if target.kind == TargetKind.SEND:
-            dest = (spec.dest_labels or {}).get(target.dest or 0) or f"{spec.dest_label or 'Bus'} {target.dest}"
+            dest = t((spec.dest_labels or {}).get(target.dest or 0) or "") or f"{t(spec.dest_label or 'Bus')} {target.dest}"
             return f"{name} → {dest}"
         return name
 
@@ -181,7 +193,7 @@ class MixerDriver(abc.ABC):
 
     async def test(self) -> str:
         await self.connect()
-        return "Verbindung aufgebaut"
+        return "Connection established"
 
     # ---------------------------------------------------------------- control
 
@@ -212,7 +224,7 @@ def driver_class(type_id: str) -> type[MixerDriver]:
     try:
         return _REGISTRY[type_id]
     except KeyError as exc:
-        raise MixerError(f"Unbekannter Mischpult-Typ '{type_id}'") from exc
+        raise MixerError(Msg("Unknown console type '{type}'", type=type_id)) from exc
 
 
 def driver_types() -> list[DriverInfo]:

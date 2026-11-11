@@ -24,6 +24,7 @@ from ..infrastructure.audio.engine import AudioEngine, Voice
 from ..infrastructure.audio.gong import builtin_gong
 from ..infrastructure.audio.tts import TtsError, TtsService
 from .cues import CueExecutor
+from ..i18n import Msg, text_of
 
 log = logging.getLogger("aep.playback")
 
@@ -47,7 +48,7 @@ class Running:
     voices: list[Voice] = field(default_factory=list)
     started: float = field(default_factory=time.time)
     stopped: bool = False
-    phase: str = "vorbereiten"
+    phase: str = "preparing"
 
 
 @dataclass
@@ -85,7 +86,7 @@ class PlaybackService:
             q: asyncio.Queue[PlaybackItem] = asyncio.Queue()
             self._queues[lane] = q
             self._workers.append(asyncio.create_task(self._worker(lane, q), name=f"aep-lane-{lane}"))
-        log.info("Wiedergabe bereit (%s)", "Medien und Durchsagen parallel" if self.parallel_lanes else "eine gemeinsame Warteschlange")
+        log.info("Playback ready (%s)", "media and announcements in parallel" if self.parallel_lanes else "one shared queue")
 
     async def stop(self) -> None:
         for w in self._workers:
@@ -119,13 +120,13 @@ class PlaybackService:
         self._pending[item.id] = item
         lane = item.lane if self.parallel_lanes else "all"
         self._queues[lane].put_nowait(item)
-        log.info("Auftrag eingereiht: %s „%s“", item.kind.value, item.label or item.text or item.file_id)
+        log.info("Request queued: %s \"%s\"", item.kind.value, item.label or item.text or item.file_id)
         self.hooks.on_change()
         return True
 
     async def _handle_stop(self, item: PlaybackItem) -> None:
         count = self.stop_all()
-        log.info("Stopp-Auftrag: %d laufende Wiedergabe(n) beendet", count)
+        log.info("Stop request: %d running playback(s) stopped", count)
         if not item.local:
             await self.hooks.report_status(item, "done", None)
         self._remember(item, "done", None)
@@ -151,7 +152,7 @@ class PlaybackService:
             except asyncio.CancelledError:
                 raise
             except Exception:  # pragma: no cover - safety net
-                log.exception("Unerwarteter Fehler bei Auftrag %s", item.id)
+                log.exception("Unexpected error in request %s", item.id)
 
     # ------------------------------------------------------------------ playing
 
@@ -169,21 +170,21 @@ class PlaybackService:
             if not item.local:
                 await self.hooks.report_status(item, "playing", None)
             # prepare audio first so the console is not opened for a broken file
-            running.phase = "lädt"
+            running.phase = "loading"
             self.hooks.on_change()
             parts = await self._prepare(item)
             if running.stopped:
                 raise _StopRequested
             if rules:
-                running.phase = "Pult"
+                running.phase = "console"
                 self.hooks.on_change()
-                log.info("Pult-Cues für „%s“: %s", item.label or item.kind.value, ", ".join(r.name for r in rules))
+                log.info("Console cues for \"%s\": %s", item.label or item.kind.value, ", ".join(r.name for r in rules))
                 cue_task = asyncio.create_task(self.cues.start(rules))
                 try:
                     session = await asyncio.wait_for(asyncio.shield(cue_task), CUE_START_TIMEOUT_S)
                 except asyncio.TimeoutError:
-                    log.warning("Pult-Aktionen dauern zu lange – Wiedergabe startet trotzdem")
-            running.phase = "spielt"
+                    log.warning("Console actions take too long – starting playback anyway")
+            running.phase = "playing"
             self.hooks.on_change()
             bus = SourceBus.MEDIA if item.lane == "media" else (SourceBus.TTS if item.kind == PlaybackKind.TTS else SourceBus.RECORDING)
             for idx, part in enumerate(parts):
@@ -197,29 +198,29 @@ class PlaybackService:
                 await self.engine.wait(voice)
             if running.stopped:
                 status = "cancelled"
-            log.info("Wiedergabe %s: %s „%s“", "abgebrochen" if running.stopped else "beendet", item.kind.value, item.label)
+            log.info("Playback %s: %s \"%s\"", "cancelled" if running.stopped else "finished", item.kind.value, item.label)
         except _StopRequested:
             status = "cancelled"
         except asyncio.CancelledError:
             status = "cancelled"
             cancelled_task = True
         except (PlaybackError, DecodeError, TtsError) as exc:
-            status, error = "failed", str(exc)
-            log.error("Wiedergabe fehlgeschlagen (%s „%s“): %s", item.kind.value, item.label, exc)
+            status, error = "failed", text_of(exc)
+            log.error("Playback failed (%s \"%s\"): %s", item.kind.value, item.label, exc)
         except Exception as exc:  # pragma: no cover
-            status, error = "failed", f"Interner Fehler: {exc}"
-            log.exception("Wiedergabe fehlgeschlagen")
+            status, error = "failed", Msg("Internal error: {error}", error=text_of(exc))
+            log.exception("Playback failed")
         finally:
             if session is None and cue_task is not None:
                 try:
                     session = await cue_task
                 except Exception:  # pragma: no cover
-                    log.exception("Pult-Aktionen fehlgeschlagen")
+                    log.exception("Console actions failed")
             if session is not None:
                 try:
                     await self.cues.finish(session)
                 except Exception:  # pragma: no cover
-                    log.exception("Pult-Rücksetzen fehlgeschlagen")
+                    log.exception("Console restore failed")
             self._running.pop(item.id, None)
             if not item.local:
                 await self.hooks.report_status(item, status, error)
@@ -248,7 +249,7 @@ class PlaybackService:
             path = Path(item.local_path) if item.local_path else await self.hooks.resolve_recording(item)
             parts.append(await self.decoder.decode_async(path, sr, 1))
         else:
-            raise PlaybackError(f"Unbekannte Auftragsart {item.kind.value}")
+            raise PlaybackError(Msg("Unknown request type {kind}", kind=item.kind.value))
         return parts
 
     async def _gong(self) -> np.ndarray:
@@ -257,7 +258,7 @@ class PlaybackService:
             try:
                 return await self.decoder.decode_async(path, self.engine.sample_rate, 1)
             except DecodeError as exc:
-                log.warning("Eigener Gong nicht abspielbar (%s) – eingebauter Gong", exc)
+                log.warning("Custom gong not playable (%s) – using built-in gong", exc)
         return builtin_gong(self.engine.sample_rate)
 
     # ------------------------------------------------------------------ read side
@@ -268,7 +269,7 @@ class PlaybackService:
         del self._history[50:]
 
     def now_playing(self) -> str:
-        labels = [r.item.label or r.item.kind.value for r in self._running.values() if r.phase == "spielt"]
+        labels = [r.item.label or r.item.kind.value for r in self._running.values() if r.phase == "playing"]
         return ", ".join(labels)[:250]
 
     def snapshot(self) -> dict[str, Any]:

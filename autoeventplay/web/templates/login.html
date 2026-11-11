@@ -4,12 +4,12 @@
   <div class="login-card aep-panel">
     <div class="aep-panel-body p-4">
       <div class="aep-brand mb-1 fs-5"><span class="logo"></span>AutoEventPlay</div>
-      <p class="text-dim mb-4">Anmeldung an der Weboberfläche</p>
+      <p class="text-dim mb-4">{{ _("Log in to the web interface") }}</p>
       <form id="login-form" autocomplete="on">
-        <div class="mb-3"><label class="form-label" for="u">Benutzername</label><input class="form-control" id="u" name="username" autocomplete="username" required autofocus></div>
-        <div class="mb-3"><label class="form-label" for="pw">Passwort</label><input class="form-control" id="pw" name="password" type="password" autocomplete="current-password" required></div>
+        <div class="mb-3"><label class="form-label" for="u">{{ _("User name") }}</label><input class="form-control" id="u" name="username" autocomplete="username" required autofocus></div>
+        <div class="mb-3"><label class="form-label" for="pw">{{ _("Password") }}</label><input class="form-control" id="pw" name="password" type="password" autocomplete="current-password" required></div>
         <div class="text-danger small mb-2" id="err" role="alert"></div>
-        <button class="btn btn-primary w-100" type="submit">Anmelden</button>
+        <button class="btn btn-primary w-100" type="submit">{{ _("Log in") }}</button>
       </form>
     </div>
   </div>
